@@ -2,6 +2,11 @@
 
 Note: This project is currently in progress. Features and functionality are actively being developed.
 
+## Development Status
+Active development is taking place on the `dev` branch.
+The `main` branch represents a stable baseline.
+
+
 ## Overview
 OPS System Management is a web-based system that tracks POS devices across multiple departments, logging their current status and user activities. It was developed to replace Excel-based tracking, providing a more efficient, accurate, and real-time way to monitor devices and streamline departmental workflows. The project is inspired by real operational processes from my workplace, reflecting practical challenges and solutions in managing POS devices.
 
@@ -10,16 +15,15 @@ The purpose of OPS System Management is to replace the Excel-based tracking syst
 
 ## Tech Stack
 This project leverages a full-stack development approach, including:
-Frontend: React.js, HTML, CSS, JavaScript
+Frontend: React.js,CSS, JavaScript
 Backend: Django, Python, Node.js
 Database: PostgreSQL
-Deployment & DevOps: Docker, Kubernetes, GitHub Actions (CI/CD)
-Additional Tools & Libraries: REST APIs, Git & GitHub
+Deployment & DevOps: Docker, Kubernetes, GitHub Actions (CI/CD) (planned / in progress)Additional Tools & Libraries: REST APIs, Git & GitHub
 
 This stack demonstrates my ability to handle end-to-end development, from building        interactive user interfaces to backend logic, database management, and production-ready deployment pipelines.
 
 ## Features / Key Functionalities
-Core Features (To Be Implemented...)
+Core Features (In Progress/Planned)
 - POS Device Tracking: Monitors the movement of POS devices across multiple departments in real-time.
 - Status Logging: Records the current status of each device (e.g., In Use, In Transit, Under Maintenance).
 - User Activity Logging: Tracks the duties and actions of users per department, ensuring accountability.
@@ -27,7 +31,7 @@ Core Features (To Be Implemented...)
 - Data Accuracy & Auditability: Reduces errors compared to Excel tracking and makes audits easier.
 - Real-World Workflow Simulation: Reflects actual operational processes based on workplace experience
 
-## Advanced / Upcoming Features (In Progress)
+## Advanced / Upcoming Features (In Progress/Planned)
 - Automated Notifications: Sends alerts when devices change status or need attention.
 - Reporting & Analytics: Generates insights on device usage, departmental performance, and audit summaries.
 - User Role Management: Different access levels for admins, department users, and auditors.
