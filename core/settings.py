@@ -43,8 +43,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Application definition
 
 INSTALLED_APPS = [
+    'rest_framework',
     'corsheaders',
     'backend.hr.apps.HrConfig',
+    'backend.warehouse.apps.WarehouseConfig',
     'backend.finance.apps.FinanceConfig',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -140,3 +142,18 @@ REST_FRAMEWORK = {
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+# settings.py
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication"
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated"  # locked by default
+    ]
+}
+
+
+
+AUTH_USER_MODEL = "hr.Employee"
