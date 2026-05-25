@@ -19,3 +19,15 @@ class IsHRStaff(BasePermission):
             request.user.is_authenticated and
             request.user.department == "hr"
         )
+
+
+from rest_framework.permissions import BasePermission
+
+class IsHRStaff(BasePermission):
+    message = "Access restricted to HR department only."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated and
+            request.user.department == "hr"
+        )

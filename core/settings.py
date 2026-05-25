@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from datetime import timedelta
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,6 +48,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'backend.hr.apps.HrConfig',
     'backend.warehouse.apps.WarehouseConfig',
+    'backend.authentication.apps.AuthenticationConfig',
+    'rest_framework_simplejwt.token_blacklist',
     'backend.finance.apps.FinanceConfig',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -157,3 +160,11 @@ REST_FRAMEWORK = {
 
 
 AUTH_USER_MODEL = "hr.Employee"
+
+
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}

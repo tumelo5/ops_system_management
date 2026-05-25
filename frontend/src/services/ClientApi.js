@@ -21,7 +21,7 @@ export const submitClientWorkflow = async (payload) => {
 export const submitBulkWorkflow = async (payload) => {
   const { type, ...rest } = payload;
 
-  const res = await api.post("/warehouse/api/handle/", {
+  const res = await api.post("/warehouse/clients/", {
     mode: type,
     ...rest
   });

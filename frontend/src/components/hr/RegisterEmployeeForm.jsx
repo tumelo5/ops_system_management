@@ -1,5 +1,5 @@
 import { useState } from "react";
-import HRApi from "../../services/HRApi";
+import {HRApi} from "../../services/HRApi";
 
 export default function RegisterEmployeeForm() {
 
@@ -53,7 +53,8 @@ export default function RegisterEmployeeForm() {
             <h2>Register Employee</h2>
 
             {message && <p style={{ color: "green" }}>{message}</p>}
-            {error   && <p style={{ color: "red"   }}>{error}</p>}
+            {error && <p style={{ color: "red" }}>{typeof error === "object" ? JSON.stringify(error) : error}</p>}
+
 
             <form onSubmit={handleSubmit}>
                 <input name="first_name"  placeholder="First Name"   value={formData.first_name}  onChange={handleChange} required />

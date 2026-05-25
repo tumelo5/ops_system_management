@@ -22,9 +22,8 @@ import backend.warehouse.urls
 
 
 urlpatterns = [
-    path("admin/",          admin.site.urls),
-    path("auth/login/",     TokenObtainPairView.as_view()),
-    path("auth/refresh/",   TokenRefreshView.as_view()),
-    path("warehouse/",      include("backend.warehouse.urls")),
-    path("hr/",             include("backend.hr.urls")),    
+    path("admin/",      admin.site.urls),
+    path("auth/",       include("backend.authentication.urls")),  # ← handles login, refresh, logout, me
+    path("warehouse/",  include("backend.warehouse.urls")),
+    path("hr/",         include("backend.hr.urls")),
 ]

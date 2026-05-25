@@ -1,3 +1,5 @@
+
+from .models import Employee
 # hr/services.py
 
 class HRService:
