@@ -20,7 +20,7 @@ export default function BulkAddClientForm() {
 
   // Single client — Model
   const [modelName, setModelName] = useState("");
-  const [modelstatus, setModelStatus] = useState("");
+  const [modelStatus, setModelStatus] = useState("");
 
   // Single client — Batch code
   const [batchcode, setBatchCode] = useState("");
@@ -83,7 +83,7 @@ export default function BulkAddClientForm() {
         client_name: clientName,
         client_status: clientStatus,
         model_name: modelName,
-        model_status: modelstatus
+        model_status: modelStatus
       });
 
       setClientOptions(response.clients || []);
@@ -280,7 +280,7 @@ export default function BulkAddClientForm() {
             />
             <input
               placeholder="Model Status"
-              value={modelstatus}
+              value={modelStatus}
               onChange={(e) => setModelStatus(e.target.value)}
             />
             <button type="submit">Add Client & Model</button>
