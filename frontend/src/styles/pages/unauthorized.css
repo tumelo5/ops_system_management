@@ -1,0 +1,17 @@
+.unauthorized-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  background: var(--color-bg-page);
+  font-family: var(--font-family);
+}
+
+.unauthorized-page__message {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+}

@@ -17,7 +17,7 @@ class Client(models.Model):
 # DEVICE MODEL
 # - model_status: model can be discontinued but not deleted, to preserve historical data integrity. Default is 'Active'.
 class DeviceModel(models.Model):
-    model_name = models.CharField(max_length=100, unique=True, null=False, blank=False)
+    model_name = models.CharField(max_length=100, unique=False, null=False, blank=False)
     model_status = models.CharField(default='Active')
 
     def __str__(self):

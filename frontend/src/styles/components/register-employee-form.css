@@ -1,0 +1,104 @@
+.register-employee {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+}
+
+.register-employee__title {
+  margin: 0 0 1.25rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.register-employee__message {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.875rem;
+  border-radius: var(--radius-sm);
+}
+
+.register-employee__message--success {
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success-text);
+}
+
+.register-employee__message--error {
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error-text);
+}
+
+.register-employee__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.register-employee__field input,
+.register-employee__field select {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.register-employee__field input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.register-employee__field input:hover:not(:disabled),
+.register-employee__field select:hover:not(:disabled) {
+  border-color: var(--color-border-hover);
+}
+
+.register-employee__field input:focus,
+.register-employee__field select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.register-employee__field input:disabled,
+.register-employee__field select:disabled {
+  background: var(--color-bg-disabled);
+  color: var(--color-text-placeholder);
+  cursor: not-allowed;
+}
+
+.register-employee__field--full {
+  grid-column: 1 / -1;
+}
+
+.register-employee__actions {
+  grid-column: 1 / -1;
+  margin-top: 0.5rem;
+}
+
+.register-employee__btn {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: var(--color-primary);
+  color: #fff;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.register-employee__btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.register-employee__btn:disabled {
+  background: var(--color-primary-disabled);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}

@@ -1,4 +1,3 @@
-import axios from 'axios';
 import api from './axios';
 
 // Client Workflow
@@ -33,13 +32,34 @@ export const submitBulkWorkflow = async (payload) => {
 // Device Workflow
 export const submitDeviceWorkflow = async (payload) => {
   const { type, ...rest } = payload;
-  const res = await api.post("/warehouse/api/devices/", { mode: type, ...rest });
+  const res = await api.post("/warehouse/devices/", { mode: type, ...rest });
   return res.data;
+};
+
+
+// Scan Device
+export const submitScanWorkflow = async (payload) =>{
+  const {type, ...rest} = payload;
+  const res = await api.post("/warehouse/devices/", {mode: type, ...rest});
+  return res.data
+
 };
 
 // Get existing clients,
 // for adding devices to exsiting clients
 export const getExistingClients = async () => {
-  const res = await api.get("/warehouse/api/clients/");
+  const res = await api.get("/warehouse/clients/list/");
+  return res.data;
+};
+
+// Get existing models
+export const getExistingModels = async () => {
+  const res = await api.get("/warehouse/models/list/");
+  return res.data;
+};
+
+// Get versions by model
+export const getVersionsByModel = async (modelId) => {
+  const res = await api.get(`/warehouse/versions/list/?model=${modelId}`);
   return res.data;
 };

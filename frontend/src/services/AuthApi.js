@@ -1,37 +1,42 @@
-// services/authApi.js
-import api from '../api/axios';
+import api from "./axios";
+import {
+  clearSession,
+  getDashboardPath,
+  getSession,
+  isValidDepartment,
+  setSession,
+} from "../utils/auth";
 
 export const AuthApi = {
-    login: async (username, password) => {
-        const response = await api.post("/auth/login/", { username, password });
-        const { access, refresh, department, full_name } = response.data;
+  login: async (username, password) => {
+    const response = await api.post("/auth/login/", { username, password });
+    const { access, refresh, department, full_name } = response.data;
 
-        localStorage.setItem("access", access);
-        localStorage.setItem("refresh", refresh);
-        localStorage.setItem("department", department);
-        localStorage.setItem("full_name", full_name);
+    if (!isValidDepartment(department)) {
+      throw new Error("Invalid department on account.");
+    }
 
-        return response.data;
-    },
+    setSession({ access, refresh, department, full_name });
+    return response.data;
+  },
 
-    logout: async () => {
-        const refresh = localStorage.getItem("refresh");
+  logout: async () => {
+    const refresh = localStorage.getItem("refresh");
+    try {
+      if (refresh) {
         await api.post("/auth/logout/", { refresh });
+      }
+    } finally {
+      clearSession();
+    }
+  },
 
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        localStorage.removeItem("department");
-        localStorage.removeItem("full_name");
-    },
+  me: async () => {
+    const response = await api.get("/auth/me/");
+    return response.data;
+  },
 
-    me: async () => {
-        const response = await api.get("/auth/me/");
-        return response.data;
-    },
-
-    isAuthenticated: () => !!localStorage.getItem("access"),
-
-    getDepartment: () => localStorage.getItem("department"),
-
-    getFullName: () => localStorage.getItem("full_name"),
+  getSession,
+  getDashboardPath,
+  clearSession,
 };
