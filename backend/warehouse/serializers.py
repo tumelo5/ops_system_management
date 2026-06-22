@@ -1,5 +1,6 @@
 from .models import Client, DeviceModel, DeviceStaging, Device, Batch, ModelVersion
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 import logging
 
 logger = logging.getLogger("warehouse.api")
@@ -8,20 +9,24 @@ logger = logging.getLogger("warehouse.api")
 # Incoming data from the client creation form is normalized to ensure consistency in the database.
 class ClientSerializer(serializers.ModelSerializer):
 
+    client_name = serializers.CharField(
+        error_messages={
+            "blank": "Client name is required."
+        }
+    )
+
     def validate_client_name(self, value):
         normalized = value.strip().lower()
         logger.warning(f"ClientSerializer | validate_client_name | raw='{value}' normalized='{normalized}'")
-        return normalized
 
-    # to be reviewed if the status value should be capitalized or not as its already capitalized in the model
-    def validate_client_status(self, value):
-        normalized = value.strip().capitalize()
-        logger.warning(f"ClientSerializer | validate_client_status | raw='{value}' normalized='{normalized}'")
+        if Client.objects.filter(client_name=normalized).exists():
+            raise serializers.ValidationError(f"Client '{value}' already exists.")
+
         return normalized
 
     class Meta:
         model = Client
-        fields = ['client_name', 'client_status']
+        fields = ['client_name']
 
 
 # Outgoing data for client retrieval, it includes id and client_name for selection/dropdown in batch code creation form
@@ -34,26 +39,66 @@ class ClientDropDownSerializer(serializers.ModelSerializer):
 # Serialization for Batch - incoming data from batch code creation form is normalized to ensure consistency in the database.
 class BatchSerializer(serializers.ModelSerializer):
 
+    batch_code = serializers.CharField(
+        error_messages={
+            "required": "Batch Code is required.",
+            "blank":    "Batch Code is required.",
+            "null":     "Batch Code is required.",
+        }
+    )
+
+    client = serializers.PrimaryKeyRelatedField(
+        queryset=Client.objects.all(),
+        error_messages={
+            "required":       "Client is required.",
+            "null":           "Client is required.",
+            "does_not_exist": "Selected client does not exist.",
+        }
+    )
+
+    model_version = serializers.PrimaryKeyRelatedField(
+        queryset=ModelVersion.objects.all(),
+        error_messages={
+            "required":       "Model version is required.",
+            "null":           "Model version is required.",
+            "does_not_exist": "Selected model version does not exist.",
+        }
+    )
+
+    def to_internal_value(self, data):
+        errors = {}
+        field_order = ['batch_code', 'client', 'model_version']
+        for field in field_order:
+            value = data.get(field)
+            if not value and value != 0:
+                errors[field] = [self.fields[field].error_messages.get('required', f'{field} is required.')]
+                raise serializers.ValidationError(errors)
+        return super().to_internal_value(data)
+
     def validate_batch_code(self, value):
         normalized = value.strip().lower()
         logger.warning(f"BatchSerializer | validate_batch_code | raw='{value}' normalized='{normalized}'")
+
+        if Batch.objects.filter(batch_code=normalized).exists():
+            raise serializers.ValidationError(f"Batch code '{value}' already exists.")
+
         return normalized
 
     class Meta:
         model = Batch
-        fields = ['client', 'batch_code']
-
+        fields = ['client', 'batch_code', 'model_version']
 
 class DeviceModelSerializer(serializers.ModelSerializer):
+
+    model_name = serializers.CharField(
+        error_messages={
+            "blank": "Model name is required.",
+        }
+    )
 
     def validate_model_name(self, value):
         normalized = value.strip().lower()
         logger.warning(f"DeviceModelSerializer | validate_model_name | raw='{value}' normalized='{normalized}'")
-        return normalized
-
-    def validate_model_status(self, value):
-        normalized = value.strip().capitalize()
-        logger.warning(f"DeviceModelSerializer | validate_model_status | raw='{value}' normalized='{normalized}'")
         return normalized
 
     class Meta:
@@ -74,11 +119,6 @@ class ModelVersionSerializer(serializers.ModelSerializer):
     def validate_version(self, value):
         normalized = value.strip().lower()
         logger.warning(f"ModelVersionSerializer | validate_version | raw='{value}' normalized='{normalized}'")
-        return normalized
-
-    def validate_status(self, value):
-        normalized = value.strip().capitalize()
-        logger.warning(f"ModelVersionSerializer | validate_status | raw='{value}' normalized='{normalized}'")
         return normalized
 
     class Meta:

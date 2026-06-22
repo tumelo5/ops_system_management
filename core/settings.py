@@ -24,11 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6rrseop9pnqovrt5lw(4#i28d#tc-noh_-6aarzer#n8w^mhn)'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -46,7 +44,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
-    'backend.hr.apps.HrConfig',
     'backend.warehouse.apps.WarehouseConfig',
     'backend.authentication.apps.AuthenticationConfig',
     'rest_framework_simplejwt.token_blacklist',
@@ -137,9 +134,13 @@ USE_I18N = True
 USE_TZ = True
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ]
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication"
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated"
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 # Static files (CSS, JavaScript, Images)
@@ -148,34 +149,11 @@ REST_FRAMEWORK = {
 STATIC_URL = 'static/'
 
 
-# settings.py
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication"
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated"  # locked by default
-    ]
-}
-
-
-
-AUTH_USER_MODEL = "hr.Employee"
-
-
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
-
-
-
-REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-}
-
 
 
 LOGGING = {
@@ -209,3 +187,6 @@ LOGGING = {
         },
     },
 }
+
+
+AUTH_USER_MODEL = "authentication.CustomUser"

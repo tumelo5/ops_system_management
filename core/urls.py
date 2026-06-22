@@ -26,7 +26,6 @@ urlpatterns = [
     path("admin/",      admin.site.urls),
     path("auth/",       include("backend.authentication.urls")),  # ← handles login, refresh, logout, me
     path("warehouse/",  include("backend.warehouse.urls")),
-    path("hr/",         include("backend.hr.urls")),
 
     # For Documenting
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

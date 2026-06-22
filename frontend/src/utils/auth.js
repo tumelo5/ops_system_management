@@ -1,8 +1,10 @@
-const VALID_DEPARTMENTS = ["hr", "warehouse"];
+const VALID_DEPARTMENTS = ["warehouse", "repairs", "stores", "finance"];
 
 export const DEPARTMENT_ROUTES = {
-  hr: "/hr",
   warehouse: "/warehouse",
+  repairs: "/repairs",
+  stores: "/stores",
+  finance: "/finance",
 };
 
 function decodeJwtPayload(token) {

@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import BulkAddClientForm from "./components/warehouse/BulkAddClientForm";
-import HRPage from "./pages/HRPage";
 import LoginPage from "./pages/LoginPage";
 import { getSession } from "./utils/auth";
 import "./styles/pages/unauthorized.css";
@@ -36,15 +35,6 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
 
         <Route path="/login" element={<LoginRoute />} />
-
-        <Route
-          path="/hr/*"
-          element={
-            <PrivateRoute department="hr">
-              <HRPage />
-            </PrivateRoute>
-          }
-        />
 
         <Route
           path="/warehouse/*"
