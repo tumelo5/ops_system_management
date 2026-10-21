@@ -41,10 +41,7 @@ flowchart TB
 |------|------|
 | `core/` | Django project settings, root URL config, WSGI |
 | `backend/authentication/` | Login, refresh, logout, `/me` |
-| `backend/hr/` | Employee registration API |
 | `backend/warehouse/` | Clients, batches, device scan/confirm |
-| `backend/common/` | Shared permission classes |
-| `backend/finance/` | Placeholder for future finance module |
 | `frontend/` | Create React App UI |
 | `docs/` | Architecture, ERD, workflows, decision log |
 
@@ -56,7 +53,6 @@ flowchart TB
 | `auth/refresh/` | Refresh access token |
 | `auth/logout/` | Blacklist refresh token |
 | `auth/me/` | Current user profile |
-| `hr/employees/` | HR operations (`mode=register_employee`) |
 | `warehouse/clients/` | Client + batch workflows (single/bulk, base/linking steps) |
 | `warehouse/devices/` | Device scan + confirm (`mode=scan` \| `confirm`) |
 | `warehouse/clients/list/` | Client dropdown data |

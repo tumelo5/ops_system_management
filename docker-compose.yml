@@ -1,0 +1,58 @@
+services:
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-ops_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ops_password}
+      POSTGRES_DB: ${DB_NAME:-ops_system}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ops_user}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    # Mounts your actual project code into the container so edits are live.
+    # Excludes venv (Docker handles Python env now) and node_modules (irrelevant here).
+    volumes:
+      - .:/app
+      - /app/venv
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Overrides .env's DB host so Django talks to the 'db' service, not localhost
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume so the container's own node_modules (installed for
+      # Linux) isn't overwritten by your host's node_modules (possibly macOS/Windows)
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

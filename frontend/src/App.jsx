@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import BulkAddClientForm from "./components/warehouse/BulkAddClientForm";
+import WarehousePage from "./components/warehouse/WarehousePage";
 import LoginPage from "./pages/LoginPage";
 import { getSession } from "./utils/auth";
 import "./styles/pages/unauthorized.css";
@@ -40,7 +40,7 @@ function App() {
           path="/warehouse/*"
           element={
             <PrivateRoute department="warehouse">
-              <BulkAddClientForm />
+              <WarehousePage />
             </PrivateRoute>
           }
         />

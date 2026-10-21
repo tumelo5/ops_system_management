@@ -1,0 +1,29 @@
+# Dev image for the Django/DRF backend.
+# Code is mounted as a volume in docker-compose.yml, so this image just needs
+# the interpreter + dependencies installed. Rebuild only when requirements.txt changes.
+
+FROM python:3.12-slim
+
+# Prevents .pyc files and forces stdout/stderr to be unbuffered (so logs show up live)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# System deps needed to build psycopg2 (Postgres driver) and other common wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy only requirements first so this layer is cached unless deps change
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Actual code comes in via the volume mount in docker-compose.yml, not COPY,
+# so local edits show up instantly without a rebuild.
+
+EXPOSE 8000
+
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

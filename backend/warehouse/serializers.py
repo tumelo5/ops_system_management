@@ -1,26 +1,36 @@
-from .models import Client, DeviceModel, DeviceStaging, Device, Batch, ModelVersion
+from .models import (Client, DeviceModel, 
+DeviceStaging, Device, 
+Batch, DeviceModelVersion, 
+BatchActionRequestGroup, 
+DeviceRental
+)
+
 from rest_framework import serializers
-from rest_framework.validators import UniqueValidator
+from rest_framework.validators import UniqueValidator, UniqueTogetherValidator
 import logging
+from django.utils import timezone
+from django.conf import settings
+from .services import (CompanyService)
 
 logger = logging.getLogger("warehouse.api")
 
 
 # Incoming data from the client creation form is normalized to ensure consistency in the database.
 class ClientSerializer(serializers.ModelSerializer):
-
     client_name = serializers.CharField(
+        max_length=255,
         error_messages={
-            "blank": "Client name is required."
+            "blank": "Client name is required.",
+            "max_length": "Client name must be 255 characters or fewer.",
         }
     )
 
     def validate_client_name(self, value):
         normalized = value.strip().lower()
         logger.warning(f"ClientSerializer | validate_client_name | raw='{value}' normalized='{normalized}'")
-
+        
         if Client.objects.filter(client_name=normalized).exists():
-            raise serializers.ValidationError(f"Client '{value}' already exists.")
+            raise serializers.ValidationError(f"Client '{value}' already existsssssS.")
 
         return normalized
 
@@ -50,29 +60,31 @@ class BatchSerializer(serializers.ModelSerializer):
     client = serializers.PrimaryKeyRelatedField(
         queryset=Client.objects.all(),
         error_messages={
-            "required":       "Client is required.",
+            "required":       "Client is required for Batch linking.",
             "null":           "Client is required.",
             "does_not_exist": "Selected client does not exist.",
         }
     )
 
     model_version = serializers.PrimaryKeyRelatedField(
-        queryset=ModelVersion.objects.all(),
+        queryset=DeviceModelVersion.objects.all(),
+        required=False,
         error_messages={
-            "required":       "Model version is required.",
-            "null":           "Model version is required.",
-            "does_not_exist": "Selected model version does not exist.",
-        }
+            "does_not_exist": "Selected device model version does not exist.",
+            }
     )
 
     def to_internal_value(self, data):
         errors = {}
-        field_order = ['batch_code', 'client', 'model_version']
+        field_order = ['batch_code', 'client']
+
         for field in field_order:
             value = data.get(field)
-            if not value and value != 0:
+            if not str(value).strip() and value != 0:
                 errors[field] = [self.fields[field].error_messages.get('required', f'{field} is required.')]
-                raise serializers.ValidationError(errors)
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return super().to_internal_value(data)
 
     def validate_batch_code(self, value):
@@ -88,17 +100,24 @@ class BatchSerializer(serializers.ModelSerializer):
         model = Batch
         fields = ['client', 'batch_code', 'model_version']
 
+
 class DeviceModelSerializer(serializers.ModelSerializer):
 
     model_name = serializers.CharField(
+        max_length=100,
         error_messages={
             "blank": "Model name is required.",
+            "max_length": "Model name must be 100 characters or fewer.",
         }
     )
 
     def validate_model_name(self, value):
         normalized = value.strip().lower()
         logger.warning(f"DeviceModelSerializer | validate_model_name | raw='{value}' normalized='{normalized}'")
+
+        if DeviceModel.objects.filter(model_name=normalized).exists():
+            raise serializers.ValidationError(f"Model '{value}' already existssssss.")
+
         return normalized
 
     class Meta:
@@ -113,17 +132,76 @@ class DeviceModelNameSerializer(serializers.ModelSerializer):
         fields = ['id', 'model_name']
 
 
+# List serializer for handling multiple model version instances
+class ModelVersionListSerializer(serializers.ListSerializer):
+    def validate(self, data):
+        seen = set()
+        for item in data:
+            key = (item['model'].id, item['version'])
+            if key in seen:
+                raise serializers.ValidationError(
+                    f"Duplicate model/version combination in request: {item['version']}"
+                )
+            seen.add(key)
+        return data
+
+
 # Incoming data for model version creation.
-class ModelVersionSerializer(serializers.ModelSerializer):
+# Keep your existing imports. UniqueTogetherValidator and ModelVersionListSerializer
+# are no longer used here; remove the validator import if nothing else in the file needs it.
+
+
+# Incoming data for model version creation.
+#
+# Versions are shared across clients: "Model X v1" is one record, and many clients'
+# batches can point at it. So an existing (model, version) combination is VALID input.
+# The service reuses the existing record (get_or_create) instead of creating a new one.
+class DeviceModelVersionSerializer(serializers.ModelSerializer):
+    version = serializers.CharField(
+        error_messages={
+            "required": "Model version is required.",
+            "blank":    "Model version is required.",
+            "null":     "Model version is required.",
+        }
+    )
+
+    model = serializers.PrimaryKeyRelatedField(
+        queryset=DeviceModel.objects.all(),
+        error_messages={
+            "required":       "Device model is required.",
+            "null":           "Device model is required.",
+            "does_not_exist": "Selected device model does not exist.",
+        }
+    )
+
+    def to_internal_value(self, data):
+        errors = {}
+        field_order = ['version', 'model']
+
+        for field in field_order:
+            value = data.get(field)
+            if not value and value != 0:
+                errors[field] = [self.fields[field].error_messages.get('required', f'{field} is required.')]
+
+        if errors:
+            raise serializers.ValidationError(errors)  # stops here, super() never runs
+
+        return super().to_internal_value(data)
 
     def validate_version(self, value):
         normalized = value.strip().lower()
-        logger.warning(f"ModelVersionSerializer | validate_version | raw='{value}' normalized='{normalized}'")
+        logger.debug(f"DeviceModelVersionSerializer | validate_version | raw='{value}' normalized='{normalized}'")
+        if not normalized:
+            raise serializers.ValidationError("Model version is required.")
         return normalized
 
     class Meta:
-        model = ModelVersion
-        fields = ['model', 'version', 'status']
+        model = DeviceModelVersion
+        fields = ['version', 'model', 'status']
+        # ModelSerializer adds a UniqueTogetherValidator automatically from the model's
+        # unique_together, so it has to be switched off explicitly. The database
+        # constraint on (model, version) still guarantees there is only one record.
+        validators = []
 
 
 class DeviceScanSerializer(serializers.Serializer):
@@ -151,5 +229,136 @@ class DeviceStagingSerializer(serializers.ModelSerializer):
 
 class ModelVersionDropDownSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ModelVersion
+        model = DeviceModelVersion
         fields = ['id', 'version']
+
+
+class BatchCorrectionSerializer(serializers.Serializer):
+    client_id = serializers.IntegerField(required=False)
+    model_version_id = serializers.IntegerField(required=False)
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+    def validate(self, data):
+        if not data.get('client_id') and not data.get('model_version_id'):
+            raise serializers.ValidationError("Provide at least one of client_id or model_version_id.")
+        return data
+
+
+class ReferenceCorrectionSerializer(serializers.Serializer):
+    field = serializers.CharField()
+    value = serializers.CharField()
+
+
+class BatchDetailSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    batch_code = serializers.CharField()
+    client_name = serializers.CharField(source='client.client_name')
+    model_name = serializers.CharField(source='model_version.model.model_name')
+    version = serializers.CharField(source='model_version.version')
+
+
+class BatchReassignmentRequestSerializer(serializers.Serializer):
+    client_id = serializers.IntegerField()
+    batch_code = serializers.CharField(max_length=100)
+    reason = serializers.CharField(max_length=255, allow_blank=False)
+
+
+class DeviceRentalSerializer(serializers.ModelSerializer):
+    device = serializers.SlugRelatedField(
+        slug_field="serial_number",
+        queryset=Device.objects.select_related("batch"),
+        error_messages={
+            "required": "Device is required for rental.",
+            "null": "Device is required.",
+            "does_not_exist": "No device with serial number '{value}' was found.",
+            "invalid": "Invalid serial number.",
+        },
+    )
+    rental_client = serializers.PrimaryKeyRelatedField(
+        queryset=Client.objects.all(),
+        error_messages={
+            "required": "Rental client is required.",
+            "null": "Rental client is required.",
+            "does_not_exist": "The selected client does not exist.",
+            "incorrect_type": "Invalid client.",
+        },
+    )
+ 
+    class Meta:
+        model = DeviceRental
+        fields = ["device", "rental_client", "expected_return_date"]
+ 
+    def validate_expected_return_date(self, value):
+        if value and value <= timezone.now():
+            raise serializers.ValidationError(
+                "Expected return date must be in the future."
+            )
+        return value
+ 
+ 
+class RentableDeviceSerializer(serializers.ModelSerializer):
+    """Response of the scan-time check on Assign Rental."""
+ 
+    # ASSUMPTION: Batch -> model_version -> model / version. If your scan endpoint
+    # already has a device serializer returning serial_number, model_name and
+    # version_name, reuse that one instead.
+    model_name = serializers.CharField(source="batch.model_version.model.model_name", read_only=True)
+    version_name = serializers.CharField(source="batch.model_version.version", read_only=True)
+ 
+    class Meta:
+        model = Device
+        fields = ["serial_number", "model_name", "version_name"]
+ 
+ 
+class ActiveRentalSerializer(serializers.ModelSerializer):
+    rental_id = serializers.IntegerField(source="id", read_only=True)
+    serial_number = serializers.CharField(source="device.serial_number", read_only=True)
+    client = serializers.CharField(source="rental_client.client_name", read_only=True)
+ 
+    class Meta:
+        model = DeviceRental
+        fields = ["rental_id", "serial_number", "client", "start_date", "expected_return_date"]
+ 
+ 
+class EndRentalsSerializer(serializers.Serializer):
+    rental_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+        max_length=50,
+        error_messages={
+            "required": "Scan at least one device.",
+            "empty": "Scan at least one device.",
+            "not_a_list": "Rental ids must be a list.",
+            "max_length": "A batch can hold at most 50 devices.",
+        },
+    )
+    end_date = serializers.DateField(
+        error_messages={
+            "required": "Choose an end date.",
+            "invalid": "The end date must be a valid date (YYYY-MM-DD).",
+        },
+    )
+ 
+ 
+class EndedRentalSerializer(serializers.ModelSerializer):
+    """Response of the bulk end: one entry per rental that was closed."""
+ 
+    rental_id = serializers.IntegerField(source="id", read_only=True)
+    serial_number = serializers.CharField(source="device.serial_number", read_only=True)
+    client = serializers.CharField(source="rental_client.client_name", read_only=True)
+ 
+    class Meta:
+        model = DeviceRental
+        fields = ["rental_id", "serial_number", "client", "returned_at"]
+ 
+
+class SetCompanySerializer(serializers.Serializer):
+    client = serializers.PrimaryKeyRelatedField(
+        queryset=Client.objects.all(),
+        error_messages={
+            "required": "Select a client.",
+            "null": "Select a client.",
+            "does_not_exist": "Selected client does not exist.",
+        },
+    )
+ 

@@ -1,0 +1,149 @@
+/* Styles for ScanBox.jsx (and the lock hint shown beside it in the rental panels) */
+
+.scan-box-wrap {
+  margin-top: 0.25rem;
+}
+
+.scan-box__header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.scan-box {
+  position: relative;
+  box-sizing: border-box;
+  min-height: calc(3 * 1.75rem + 1.2rem + 2px);
+  overflow: hidden;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: height 0.15s ease, border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.scan-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.scan-box--locked,
+.scan-box--locked:focus-within {
+  border-color: var(--color-error-border, #fca5a5);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+/* The textarea and the backdrop must share exactly the same text metrics */
+.scan-box__backdrop,
+.scan-box__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0.6rem 0;
+  border: 0;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.75rem;
+  white-space: pre;
+  scrollbar-gutter: stable;
+}
+
+.scan-box__backdrop {
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scan-box__input {
+  overflow: auto;
+  resize: none;
+  padding-left: 0.9rem;
+  padding-right: 0.9rem;
+  color: var(--color-text);
+  background: transparent;
+  outline: none;
+}
+
+.scan-box__input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.scan-box__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 1.75rem;
+  padding: 0 0.9rem;
+}
+
+/* The serial text itself is drawn by the textarea on top */
+.scan-box__sn {
+  color: transparent;
+}
+
+.scan-box__meta {
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.scan-box__line--ok {
+  box-shadow: inset 5px 0 0 var(--color-success-text, #16a34a);
+}
+
+.scan-box__line--checking .scan-box__meta {
+  font-style: italic;
+}
+
+.scan-box__line--flagged {
+  background: var(--color-error-bg, #fef2f2);
+  box-shadow: inset 5px 0 0 var(--color-error-text, #b91c1c);
+}
+
+.scan-box__line--flagged .scan-box__meta {
+  font-weight: 600;
+  color: var(--color-error-text, #b91c1c);
+}
+
+.scan-box__problems {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scan-box__problems li {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-error-text, #b91c1c);
+  background: var(--color-error-bg, #fef2f2);
+  border: 1px solid var(--color-error-border, #fca5a5);
+  border-radius: var(--radius-sm);
+}
+
+.scan-box__notice {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.scan-lock-hint {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-error-text, #b91c1c);
+}

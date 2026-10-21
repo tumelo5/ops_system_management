@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AddClientForm from "../components/warehouse/AddClientForm";
-import BulkAddClientForm from "../components/warehouse/BulkAddClientForm";
+import WarehousePage from "../components/warehouse/WarehousePage";
 import "../styles/pages/client-page.css";
 
 export default function ClientPage() {
@@ -35,7 +35,7 @@ export default function ClientPage() {
       </div>
 
       {mode === "single" && <AddClientForm />}
-      {mode === "bulk" && <BulkAddClientForm />}
+      {mode === "bulk" && <WarehousePage />}
     </div>
   );
 }

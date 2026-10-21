@@ -1,3 +1,12 @@
+/*
+  bulk-workflow.css
+  The Warehouse page shell and the shared form primitives (card, fields, buttons,
+  entry rows, device table) that several panels reuse.
+  Component-specific styles live in their own files:
+    mode-picker.css, company-setup.css, rental-panel.css,
+    end-rental-panel.css, scan-box.css, correction-panel.css
+*/
+
 .bulk-workflow {
   min-height: 100vh;
   max-width: 960px;
@@ -10,12 +19,42 @@
 }
 
 .bulk-workflow__header {
+  padding-top: 2rem;
+  margin-bottom: 2.75rem;
+  transition: margin-bottom 0.25s ease;
+}
+
+.bulk-workflow__header--compact {
   margin-bottom: 1.75rem;
 }
 
+.bulk-workflow__header--compact .bulk-workflow__title {
+  font-size: 1.5rem;
+  margin-bottom: 0;
+}
+
+/* Subtitle + tagline: collapse smoothly once a card is selected */
+.bulk-workflow__intro {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+}
+
+.bulk-workflow__intro > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bulk-workflow__intro--hidden {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
 .bulk-workflow__title {
-  margin: 0 0 0.35rem;
+  margin: 0 0 0.6rem;
   font-size: 1.75rem;
+  transition: font-size 0.25s ease;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -26,27 +65,15 @@
   color: var(--color-text-muted);
 }
 
-.bulk-workflow__mode-select {
-  width: 100%;
-  max-width: 320px;
-  padding: 0.6rem 0.85rem;
-  font-size: 0.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-card);
+/* Tagline — sits under the title and subtitle */
+.bulk-workflow__tagline {
+  margin: 1.75rem auto 0;
+  max-width: 560px;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   color: var(--color-text);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.bulk-workflow__mode-select:hover {
-  border-color: var(--color-border-hover);
-}
-
-.bulk-workflow__mode-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus-strong);
 }
 
 .bulk-workflow__section {
@@ -63,17 +90,17 @@
 
 .bulk-workflow__card-title {
   margin: 0 0 1rem;
-  font-size: 1.125rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
 .bulk-workflow__card-subtitle {
-  margin: 0 0 0.85rem;
+  margin: 0 0 1rem;
   font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text);
 }
 
 .bulk-workflow__entry {
@@ -99,6 +126,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.75rem;
+}
+
+.bulk-workflow__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .bulk-workflow__field input,
@@ -135,6 +168,43 @@
   background: var(--color-bg-disabled);
   color: var(--color-text-placeholder);
   cursor: not-allowed;
+}
+
+.bulk-workflow__field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+/* Divider between fields in a row, base "Add Clients" card only */
+.bulk-workflow__fields--divided {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.bulk-workflow__fields--divided .bulk-workflow__field:not(:first-child) {
+  border-left: 1px solid var(--color-border-subtle);
+  padding-left: 0.75rem;
+}
+
+.bulk-workflow__linking-fields {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.bulk-workflow__linking-fields > .bulk-workflow__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 220px;
+}
+
+.bulk-workflow__linking-fields > .bulk-workflow__fields:not(:first-child) {
+  border-left: 1px solid var(--color-border-subtle);
+  padding-left: 0.75rem;
 }
 
 .bulk-workflow__actions {
@@ -264,20 +334,45 @@
 
 .bulk-workflow__device-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin-top: 1rem;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .bulk-workflow__device-table th,
 .bulk-workflow__device-table td {
-  border: 1px solid var(--color-border);
-  padding: 0.6rem 0.75rem;
+  padding: 0.75rem 1rem;
   font-size: 0.875rem;
   text-align: left;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .bulk-workflow__device-table th {
   background: var(--color-bg-muted);
   font-weight: 600;
-  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bulk-workflow__device-table tbody tr {
+  background: var(--color-bg-card);
+  transition: background var(--transition-fast);
+}
+
+.bulk-workflow__device-table tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+.bulk-workflow__device-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.bulk-workflow__scan-input {
+  max-width: 320px;
 }

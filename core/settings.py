@@ -17,6 +17,8 @@ from datetime import timedelta
 # Load environment variables from .env file
 load_dotenv()
 
+SECRET_KEY=os.getenv("SECRET_KEY")
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = []
 
@@ -44,10 +46,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
+    'backend.callcenter.apps.CallcenterConfig',
     'backend.warehouse.apps.WarehouseConfig',
     'backend.authentication.apps.AuthenticationConfig',
     'rest_framework_simplejwt.token_blacklist',
-    'backend.finance.apps.FinanceConfig',
     'drf_spectacular',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -141,6 +143,17 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated"
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/day",
+        "user": "1000/day",
+        "login": "5/minute",    # custom scope, see below
+        "bulk_write": "10/minute",  # custom scope for write-heavy endpoints
+    }
 }
 
 # Static files (CSS, JavaScript, Images)
@@ -190,3 +203,4 @@ LOGGING = {
 
 
 AUTH_USER_MODEL = "authentication.CustomUser"
+

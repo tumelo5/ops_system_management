@@ -18,27 +18,15 @@ sequenceDiagram
 
 | Department | Dashboard route |
 |------------|-----------------|
-| `hr` | `/hr` |
 | `warehouse` | `/warehouse` |
 
 If a user hits a route for another department, they are redirected to `/unauthorized`. Expired or invalid tokens clear the session and send the user back to `/login`.
 
-## HR: Register employee
-
-**UI:** `HRPage` → `RegisterEmployeeForm`  
-**API:** `POST hr/employees/` with `mode: "register_employee"`
-
-1. HR user fills username, password, name, email, optional employee ID/title, and department (`warehouse` or `hr`).
-2. Frontend calls `HRApi.registerEmployee`.
-3. Backend validates with `EmployeeRegistrationSerializer`, creates user via `HRService.register_employee`.
-4. Success message shown; form resets.
-
-Requires `IsHRStaff` permission on the API.
-
 ## Warehouse: Client onboarding (bulk workflow)
 
-**UI:** `BulkAddClientForm`  
-**API:** `POST warehouse/clients/`
+**UI:** `WarehousePage`  
+**API:** `POST warehouse/clients/`  
+**Permission:** `IsWarehouseAgent` (enforced for both steps)
 
 The client workflow is a two-step process controlled by `mode` and `step`:
 
@@ -48,21 +36,38 @@ Creates clients and device models.
 
 | Mode | Behavior |
 |------|----------|
-| `single_client` | One client + one model per request |
-| `bulk_clients` | Array of client/model pairs in `clients[]` |
+| `bulk_clients` | Array of client & model pairs in `clients[]` |
 
-Response refreshes dropdown data for clients and models.
+Wrapped in `transaction.atomic` — if any client/model pair fails validation, the entire batch is rolled back (no partial writes).
+
+**Response:**
+```json
+{
+  "clients": [{"id": 1, "name": "..."}],
+  "models": [{"id": 1, "name": "..."}]
+}
+```
+
+After successful bulk submission, response refreshes dropdown data for clients and models, and the linking section is unlocked.
 
 ### Step 2 — Linking (`step: "linking"`)
 
-Associates batch codes with clients and model versions.
+Associates `batch_codes` with clients and `device_model` with `model_versions`.
 
 | Mode | Behavior |
 |------|----------|
-| `single_client` | One batch + version link |
 | `bulk_clients` | Array of links in `links[]` |
 
-Requires `IsWarehouseAgent` permission.
+Wrapped in `transaction.atomic` — if any link fails validation, the entire batch is rolled back (no partial writes).
+
+**Response:**
+```json
+{
+  "links": [{"batch_code": "...", "client_id": 1, "model_version_id": 1}]
+}
+```
+
+After successful linking, the device scanning section is unlocked.
 
 ## Warehouse: Device intake
 
@@ -97,3 +102,9 @@ Staging uses plain text fields (no FKs) so validation can run before committing 
 3. Authenticate using a JWT from `auth/login/` (Bearer token) to try protected endpoints
 
 Schema is generated from DRF views via **drf-spectacular** (`/api/schema/`).
+
+
+
+
+
+

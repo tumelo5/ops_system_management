@@ -41,7 +41,7 @@ Core Features (In Progress/Planned)
 ## Project Structure
 ops_system_management/
 ├── backend/              # Server-side application and API
-├── core/                 # Django proect settings and configuration
+├── core/                 # Django project settings and configuration
 ├── frontend/             # Client-side user interface
 ├── docs/                 # Project documentation
 │   ├── ERD.md           # Entity Relationship Diagram

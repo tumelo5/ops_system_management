@@ -5,9 +5,6 @@ class IsWarehouseAgent(BasePermission):
     message = "Access restricted to Warehouse department only."
 
     def has_permission(self, request, view):
-        print("DEBUG user:", request.user)
-        print("DEBUG authenticated:", request.user.is_authenticated)
-        print("DEBUG department:", repr(request.user.department))
         return (
             request.user.is_authenticated and
             request.user.department == "warehouse"

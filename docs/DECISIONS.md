@@ -70,7 +70,7 @@ Recorded decisions for OPS System Management. New entries should be dated and in
 ## ADR-008: Centralized frontend styles (not colocated CSS)
 
 **Status:** Accepted (2025)  
-**Context:** CSS lived beside components (`HRPage.css`, `BulkAddClientForm.css`) and inline styles on login—hard to maintain consistently.  
+**Context:** CSS lived beside components (`HRPage.css`, `WarehousePage.css`) and inline styles on login—hard to maintain consistently.  
 **Decision:** All styles under `frontend/src/styles/`:
 
 - `global/` — variables and base styles (imported once in `index.js`)

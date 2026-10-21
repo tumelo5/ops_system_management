@@ -20,7 +20,7 @@ from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView  
 import backend.warehouse.urls
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from django.contrib import admin
+
 
 urlpatterns = [
     path("admin/",      admin.site.urls),
