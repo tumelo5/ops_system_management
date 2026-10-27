@@ -51,12 +51,7 @@ ops_system_management/
 ├── core/
 ├── frontend/
 ├── docs/
-│   └── ops_system_management/
 │       ├── BUSINESS_REQUIREMENTS.md
-│       ├── ARCHITECTURE.md
-│       ├── ERD.md
-│       ├── WORKFLOW.md
-│       └── DECISIONS.md
 ├── docker-compose.yml
 ├── Dockerfile.backend
 ├── manage.py
