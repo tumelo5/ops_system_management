@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import (ClientView, ScanDeviceView, ClientListView, 
+from .views import (ScanDeviceView, ClientListView, 
 ModelListView, ModelVersionListView, ScanDeviceView, 
 ConfirmDeviceView, ConfirmBulkDevicesView, BulkClientsView, 
 BulkClientsLinkingView, ValidateSelectionView, NewVersionView, NewModelView,
@@ -14,7 +14,7 @@ urlpatterns = [
     path("clients/bulk/links/", BulkClientsLinkingView.as_view(), name="clients-bulk-links"),
     path("clients/awaiting-linking/", ClientsAwaitingLinkingView.as_view(), name="clients-awaiting-linking"),
 
-    path("clients/", ClientListView.as_view(), name="clients-list"),
+    # path("clients/", ClientListView.as_view(), name="clients-list"),
     # path("models/", DeviceModelListView.as_view(), name="models-list"),
     # path("versions/", DeviceModelVersionListView.as_view(), name="versions-list"),
 

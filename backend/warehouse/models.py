@@ -33,7 +33,6 @@ class Client(models.Model):
 
 # DEVICE MODEL
 # - model_status: model can be discontinued but not deleted, to preserve historical data integrity. Default is 'Active'.
-# - model_name is intentionally NOT unique: different clients may have devices with the same model name.
 class DeviceModel(models.Model):
     model_name = models.CharField(max_length=100,unique=True, blank=False)
     model_status = models.CharField(
@@ -77,6 +76,9 @@ class Batch(models.Model):
     model_version = models.ForeignKey(DeviceModelVersion, on_delete=models.CASCADE, related_name='batches', blank=False)
     corrected_at = models.DateTimeField(null=True, blank=True  )
     correction_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('model_version', 'client')  # Ensure unique batch code per client
 
     def __str__(self):
         return f"{self.batch_code} ({self.client.client_name})"

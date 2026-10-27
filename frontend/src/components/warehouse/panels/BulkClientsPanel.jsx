@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   getExistingModels,
+  getVersionsByModel, // your existing "versions of a model" call (ModelVersionListView); rename if yours differs
   getClientsAwaitingLinking,
   submitBulkClientsBase,
   submitBulkClientsLinking,
@@ -11,11 +12,15 @@ import ScanCard from "../shared/ScanCard";
 const MAX_ROWS = 5;
 const LINK_ERROR_FIELD_ORDER = ["batch_code", "client", "version", "model"];
 
+// Same normalisation as the serializers (strip + lowercase), so the live checks
+// agree with what the server will decide.
+const normalise = (s) => (s ?? "").trim().toLowerCase();
+
 // One row index drives both forms: the Add Clients row and the matching Linking row.
 // Adding or removing a row changes both, so the two forms always have the same number of rows.
 const blankRow = () => ({
   client_name: "", // Add Clients
-  model_name: "", // Add Clients
+  model_name: "", // Add Clients (optional: leave blank when the model already exists)
   client: "", // Linking
   model: "", // Linking
   batch_code: "", // Linking
@@ -30,6 +35,9 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
   // Dropdown data. Clients are only those that have no batch code yet.
   const [pendingClients, setPendingClients] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
+
+  // Existing versions of each model selected in Linking: { [modelId]: [{ id, version }] }
+  const [versionsByModel, setVersionsByModel] = useState({});
 
   // Scan unlocks once a batch has been created in this panel
   const [scanUnlocked, setScanUnlocked] = useState(false);
@@ -64,6 +72,55 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
     if (active) loadLinkingData();
   }, [active, loadLinkingData]);
 
+  // Load the existing versions of every model currently selected in Linking.
+  // The key only changes when the set of selected models changes, so typing a
+  // version does not trigger requests. It reloads when the panel becomes active again.
+  const selectedModelKey = [...new Set(rows.map((r) => r.model).filter(Boolean))]
+    .sort()
+    .join(",");
+
+  useEffect(() => {
+    if (!active || !selectedModelKey) return;
+    let cancelled = false;
+    (async () => {
+      const loaded = {};
+      await Promise.all(
+        selectedModelKey.split(",").map(async (id) => {
+          try {
+            loaded[id] = await getVersionsByModel(id);
+          } catch (error) {
+            console.error("Failed to load versions for model", id, error);
+          }
+        })
+      );
+      if (!cancelled) setVersionsByModel(loaded);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, selectedModelKey]);
+
+  // ---- Live model check (Add Clients) ----
+  const modelNames = useMemo(
+    () => new Set(modelOptions.map((m) => normalise(m.model_name))),
+    [modelOptions]
+  );
+
+  // One message per row, or null. These block Save because the server would reject them.
+  const modelWarnings = rows.map((r, i) => {
+    const typed = normalise(r.model_name);
+    if (!typed) return null;
+    if (modelNames.has(typed)) {
+      return `"${r.model_name.trim()}" already exists. Leave this blank and select it in the Linking section.`;
+    }
+    const firstRow = rows.findIndex((o) => normalise(o.model_name) === typed);
+    if (firstRow !== i) {
+      return `Same model as row ${rowLabel(firstRow)}. Enter it once and select it in Linking for the other client.`;
+    }
+    return null;
+  });
+  const hasModelWarning = modelWarnings.some(Boolean);
+
   // ---- Rows ----
   const updateRow = (index, field, value) =>
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
@@ -83,7 +140,7 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
       // Clear only the Add Clients fields; the saved data can't be resubmitted
       setRows((prev) => prev.map((r) => ({ ...r, client_name: "", model_name: "" })));
       notifyBase("success", response.message || "Clients and models created.");
-      await loadLinkingData(); // the new clients now appear in the Linking dropdowns
+      await loadLinkingData(); // the new clients and models now appear in the Linking dropdowns
       onDataChanged?.();
     } catch (error) {
       notifyBase(
@@ -155,10 +212,15 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
                 </div>
                 <div className="bulk-workflow__field">
                   <input
-                    placeholder="Model Name"
+                    placeholder="Model Name (optional)"
                     value={entry.model_name}
                     onChange={(e) => updateRow(index, "model_name", e.target.value)}
                   />
+                  {modelWarnings[index] && (
+                    <p style={{ fontSize: "0.75rem", color: "#b45309", margin: "0.25rem 0 0" }}>
+                      {modelWarnings[index]}
+                    </p>
+                  )}
                 </div>
               </div>
               {rows.length > 1 && (
@@ -185,7 +247,12 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
             >
               + Add Row {rows.length >= MAX_ROWS ? "(max)" : `(${rows.length}/${MAX_ROWS})`}
             </button>
-            <button type="submit" className="bulk-workflow__btn bulk-workflow__btn--primary">
+            <button
+              type="submit"
+              className="bulk-workflow__btn bulk-workflow__btn--primary"
+              disabled={hasModelWarning}
+              title={hasModelWarning ? "Fix the model warnings first" : ""}
+            >
               Save Clients
             </button>
           </div>
@@ -213,6 +280,13 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
                 .filter(Boolean)
             );
             const clientChoices = pendingClients.filter((c) => !takenElsewhere.has(String(c.id)));
+
+            // Existing versions of the model picked in this row. An existing version is valid:
+            // versions are shared, so it is only a hint to pick it from the list.
+            const versions = versionsByModel[entry.model] ?? [];
+            const typedVersion = normalise(entry.version);
+            const versionExists =
+              !!typedVersion && versions.some((v) => normalise(v.version) === typedVersion);
 
             return (
               <div
@@ -259,9 +333,20 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
                     <div className="bulk-workflow__field">
                       <input
                         placeholder="Version"
+                        list={`versions-${index}`}
                         value={entry.version}
                         onChange={(e) => updateRow(index, "version", e.target.value)}
                       />
+                      <datalist id={`versions-${index}`}>
+                        {versions.map((v) => (
+                          <option key={v.id} value={v.version} />
+                        ))}
+                      </datalist>
+                      {versionExists && (
+                        <p style={{ fontSize: "0.75rem", color: "#2563eb", margin: "0.25rem 0 0" }}>
+                          This version already exists for the model. Pick it from the list and it will be reused.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

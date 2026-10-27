@@ -15,8 +15,8 @@ from .serializers import (
     BatchCorrectionSerializer, ReferenceCorrectionSerializer,
     BatchDetailSerializer, BatchReassignmentRequestSerializer,
     DeviceRentalSerializer,SetCompanySerializer,
-    ActiveRentalSerializer, EndedRentalSerializer, EndRentalsSerializer, RentableDeviceSerializer
-)
+    ActiveRentalSerializer, EndedRentalSerializer,
+    EndRentalsSerializer, RentableDeviceSerializer, OptionalDeviceModelSerializer)
 from .models import Client, DeviceModel, DeviceModelVersion, Batch
 from backend.common.permissions import IsWarehouseAgent
 # from core.throttling import BulkWriteThrottle
@@ -66,29 +66,6 @@ def _flatten_errors(errors):
             return str(err)
     return "validation error."
 
-# Handles warehouse client creation requests, routing each request to the appropriate client operation.
-class ClientView(APIView):
-
-    permission_classes = [IsWarehouseAgent]
-
-    # Routing to the correct handler based on the mode
-    def post(self, request):
-        mode = request.data.get("mode")
-        logger.info(f"ClientView POST | user={request.user} | mode={mode}")
-
-        handlers = {
-            "bulk_clients":    self._handle_bulk_clients,
-            "existing_client": self._handle_existing_client,
-        }
-
-        handler = handlers.get(mode)
-
-        if not handler:
-            logger.warning(f"ClientView POST | invalid mode={mode}")
-            return Response({"error": "Invalid mode"}, status=status.HTTP_400_BAD_REQUEST)
-
-        return handler(request)
-
 
 # Handles bulk creation of clients and device models.
 class BulkClientsView(APIView):
@@ -105,7 +82,7 @@ class BulkClientsView(APIView):
             logger.warning(f"BulkClientsView POST | client serializer invalid | errors={client_serializer.errors}")
             return Response({"error": _flatten_errors(client_serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
 
-        model_serializer = DeviceModelSerializer(data=clients_data, many=True)
+        model_serializer = OptionalDeviceModelSerializer(data=clients_data, many=True)
         if not model_serializer.is_valid():
             logger.warning(f"BulkClientsView POST | model serializer invalid | errors={model_serializer.errors}")
             return Response({"error": _flatten_errors(model_serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
@@ -224,30 +201,50 @@ class ValidateSelectionView(APIView):
             "batch_code": batch.batch_code,
         }, status=status.HTTP_200_OK)
 
-
+# Helper function to validate multiple serializers and return the first error encountered.
+def _first_validation_error(*serializers_list):
+    """
+    Validate each serializer in order. Returns a 400 Response for the first one that is
+    invalid, or None when all of them are valid.
+    """
+    for serializer in serializers_list:
+        if not serializer.is_valid():
+            logger.warning(f"{serializer.__class__.__name__} | invalid | errors={serializer.errors}")
+            return Response(
+                {"error": _flatten_errors(serializer.errors)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    return None
 # --- Handles creation of new models/versions and their associated batches for existing clients ---
 class NewVersionView(APIView):
     permission_classes = [IsWarehouseAgent]
-
+ 
     def post(self, request):
         """
         Case 2: Existing client, existing model, new version, new batch code.
         """
-        client_id   = request.data.get("client")
-        model_id    = request.data.get("model")
-        new_version = request.data.get("version")
-        batch_code  = request.data.get("batch_code")
-
-        logger.info(f"NewVersionView | user={request.user} | client_id={client_id} model_id={model_id} version={new_version} batch_code={batch_code}")
-
-        if not all([client_id, model_id, new_version, batch_code]):
-            logger.warning("NewVersionView | missing required fields")
-            return Response({"error": "client, model, version, and batch_code are all required."}, status=status.HTTP_400_BAD_REQUEST)
-
+        logger.info(
+            f"NewVersionView | user={request.user} | client_id={request.data.get('client')} "
+            f"model_id={request.data.get('model')} version={request.data.get('version')} "
+            f"batch_code={request.data.get('batch_code')}"
+        )
+ 
+        batch_serializer = BatchSerializer(data=request.data)                 # client, batch_code
+        version_serializer = DeviceModelVersionSerializer(data=request.data)  # model, version
+ 
+        error_response = _first_validation_error(batch_serializer, version_serializer)
+        if error_response:
+            return error_response
+ 
+        client = batch_serializer.validated_data["client"]
+        batch_code = batch_serializer.validated_data["batch_code"]
+        model = version_serializer.validated_data["model"]
+        new_version = version_serializer.validated_data["version"]
+ 
         try:
             ClientService.create_existing_client_new_version(
-                client_id=client_id,
-                model_id=model_id,
+                client_id=client.id,
+                model_id=model.id,
                 new_version=new_version,
                 batch_code=batch_code,
             )
@@ -257,9 +254,9 @@ class NewVersionView(APIView):
         except Exception as e:
             logger.error(f"NewVersionView | failed | error={str(e)}", exc_info=True)
             return Response({"error": "Failed to create version and batch code."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+ 
         logger.info(f"NewVersionView | success | batch_code={batch_code} version={new_version}")
-
+ 
         return Response({
             "message": f"New version '{new_version}' and batch code '{batch_code}' created successfully."
         }, status=status.HTTP_201_CREATED)
@@ -267,25 +264,33 @@ class NewVersionView(APIView):
 
 class NewModelView(APIView):
     permission_classes = [IsWarehouseAgent]
-
+ 
     def post(self, request):
         """
         Case 3: Existing client, new model, new version, new batch code.
         """
-        client_id      = request.data.get("client")
-        new_model_name = request.data.get("model_name")
-        new_version    = request.data.get("version")
-        batch_code     = request.data.get("batch_code")
-
-        logger.info(f"NewModelView | user={request.user} | client_id={client_id} model_name={new_model_name} version={new_version} batch_code={batch_code}")
-
-        if not all([client_id, new_model_name, new_version, batch_code]):
-            logger.warning("NewModelView | missing required fields")
-            return Response({"error": "client, model_name, version, and batch_code are all required."}, status=status.HTTP_400_BAD_REQUEST)
-
+        logger.info(
+            f"NewModelView | user={request.user} | client_id={request.data.get('client')} "
+            f"model_name={request.data.get('model_name')} version={request.data.get('version')} "
+            f"batch_code={request.data.get('batch_code')}"
+        )
+ 
+        batch_serializer = BatchSerializer(data=request.data)                   # client, batch_code
+        model_serializer = DeviceModelSerializer(data=request.data)             # model_name (must not exist yet)
+        version_serializer = NewModelVersionSerializer(data=request.data)       # version only
+ 
+        error_response = _first_validation_error(batch_serializer, model_serializer, version_serializer)
+        if error_response:
+            return error_response
+ 
+        client = batch_serializer.validated_data["client"]
+        batch_code = batch_serializer.validated_data["batch_code"]
+        new_model_name = model_serializer.validated_data["model_name"]
+        new_version = version_serializer.validated_data["version"]
+ 
         try:
             ClientService.create_existing_client_new_model(
-                client_id=client_id,
+                client_id=client.id,
                 new_model_name=new_model_name,
                 new_version=new_version,
                 batch_code=batch_code,
@@ -296,13 +301,12 @@ class NewModelView(APIView):
         except Exception as e:
             logger.error(f"NewModelView | failed | error={str(e)}", exc_info=True)
             return Response({"error": "Failed to create model, version, and batch code."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+ 
         logger.info(f"NewModelView | success | model={new_model_name} version={new_version} batch_code={batch_code}")
-
+ 
         return Response({
             "message": f"New model '{new_model_name}', version '{new_version}', and batch code '{batch_code}' created successfully."
         }, status=status.HTTP_201_CREATED)
-
 
 # Handles device scanning and staging before confirmation.
 class ScanDeviceView(APIView):
@@ -470,16 +474,27 @@ class DeviceModelCorrectionView(APIView):
 
     def patch(self, request, model_id):
         try:
+            instance = DeviceModel.objects.get(id=model_id)
+        except DeviceModel.DoesNotExist:
+            return Response({"error": "Model not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = DeviceModelSerializer(
+            instance, data={"model_name": request.data.get("model_name")}, partial=True
+        )
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+
+        try:
             ClientService.correct_reference(
                 DeviceModel, model_id,
-                {"model_name": request.data.get("model_name")},
+                {"model_name": serializer.validated_data["model_name"]},
                 user=request.user,
                 reason=request.data.get("reason", ""),
             )
-        except DeviceModel.DoesNotExist:
-            return Response({"error": "Model not found."}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         return Response({"message": "Model corrected."}, status=status.HTTP_200_OK)
-
 
 class DeviceModelVersionCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
