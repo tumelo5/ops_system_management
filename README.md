@@ -8,95 +8,72 @@ The `main` branch represents a stable baseline.
 
 
 ## Overview
-OPS System Management is a web-based system that tracks POS devices across multiple departments, logging their current status and user activities. It was developed to replace Excel-based tracking, providing a more efficient, accurate, and real-time way to monitor devices and streamline departmental workflows. The project is inspired by real operational processes from my workplace, reflecting practical challenges and solutions in managing POS devices.
+OPS System Management is a web-based application designed to track devices across multiple operational modules, recording their status, movement, and relevant user activities. The system aims to provide a centralized alternative to spreadsheet-based tracking, improving visibility, data consistency, accountability, and workflow management.
+
+The project is informed by practical operational challenges and explores how software can support structured processes, reliable record-keeping, and better data management.
 
 ## Purpose
-The purpose of OPS System Management is to replace the Excel-based tracking system used at my workplace for managing POS devices. Tracking device movement, statuses, and departmental duties manually in Excel was error-prone and hard to audit — for example, finance often found discrepancies between recorded stock usage and actual usage, leading to billing errors and budget miscalculations. At one point, an audit revealed that 95% of parts usage records were incorrect, prompting a process restructure, yet Excel remained in use. This system provides a centralized, real-time platform to monitor POS devices and user responsibilities, improving accuracy, accountability, and operational efficiency.
+The purpose of OPS System Management is to improve how devices, their statuses, and related activities are tracked and managed. Spreadsheet-based approaches can make it difficult to maintain consistent records, monitor device movement, and establish clear accountability across workflows.
+
+OPS aims to address these challenges through a centralized system with structured data, defined business rules, and controlled workflows. The goal is to improve record accuracy, traceability, and operational efficiency while providing a foundation that can be adapted to different business requirements.
 
 ## Tech Stack
-This project leverages a full-stack development approach, including:
-Frontend: React.js,CSS, JavaScript
-Backend: Django, Python, Node.js
+OPS System Management uses a full-stack architecture:
+Frontend: React.js, CSS, JavaScript
+Backend: Django, Python, Django REST Framework
 Database: PostgreSQL
-Deployment & DevOps: Docker, Kubernetes, GitHub Actions (CI/CD) (planned / in progress)Additional Tools & Libraries: REST APIs, Git & GitHub
+Deployment & DevOps: Docker, Kubernetes, GitHub Actions (CI/CD) (planned)
 
-This stack demonstrates my ability to handle end-to-end development, from building        interactive user interfaces to backend logic, database management, and production-ready deployment pipelines.
+The project is being developed incrementally, from defining business requirements and designing data models to implementing backend functionality and building the user interface. Deployment and automation will be introduced as the system matures.
 
 ## Features / Key Functionalities
-Core Features (In Progress/Planned)
-- POS Device Tracking: Monitors the movement of POS devices across multiple departments in real-time.
-- Status Logging: Records the current status of each device (e.g., In Use, In Transit, Under Maintenance).
-- User Activity Logging: Tracks the duties and actions of users per department, ensuring accountability.
-- Centralized Dashboard: Provides a single interface to view device locations, statuses, and user activities.
-- Data Accuracy & Auditability: Reduces errors compared to Excel tracking and makes audits easier.
-- Real-World Workflow Simulation: Reflects actual operational processes based on workplace experience
+Core Features
+- Device Tracking: Tracks devices and their associated records throughout defined operational workflows.
+- Status Management: Maintains device statuses as they progress through the system.
+- Structured Data Management: Uses relational data models and validation to maintain data consistency.
+- Workflow Management: Supports interactions between operational modules through defined business rules.
+- Data Integrity: Applies validation and database constraints to help prevent invalid or inconsistent records.
+- Activity Traceability: Provides a foundation for recording relevant user actions and changes.
 
-## Advanced / Upcoming Features (In Progress/Planned)
-- Automated Notifications: Sends alerts when devices change status or need attention.
-- Reporting & Analytics: Generates insights on device usage, departmental performance, and audit summaries.
-- User Role Management: Different access levels for admins, department users, and auditors.
-- Hosted Version Deployment: Accessible online without local setup for easy review.
-- CI/CD & Containerization: Full Docker/Kubernetes deployment pipeline planned for production-readiness.
+Implementation status varies by feature as development continues.
+
+## Planned / Upcoming Features
+- Automated Notifications: Alerts users when defined events or conditions require attention.
+- Reporting & Analytics: Summarizes operational data to support monitoring and decision-making.
+- Role-Based Access Control: Restricts functionality and data access according to user roles and permissions.
+- Hosted Deployment: Makes the application accessible online for demonstration and review.
+- Containerization & CI/CD: Introduces Docker-based deployment and automated workflows using GitHub Actions, with Kubernetes considered      for orchestration where appropriate.
+
 
 ## Project Structure
 ops_system_management/
-├── backend/              # Server-side application and API
-├── core/                 # Django project settings and configuration
-├── frontend/             # Client-side user interface
-├── docs/                 # Project documentation
-│   ├── ERD.md           # Entity Relationship Diagram
-│   ├── ARCHITECTURE.md  # System architecture and design
-│   ├── WORKFLOW.md      # Process flows and user journeys
-│   └── DECISIONS.md     # Technical decision log
-└── README.md             # Project overview and setup guide
+├── backend/
+├── core/
+├── frontend/
+├── docs/
+│   └── ops_system_management/
+│       ├── BUSINESS_REQUIREMENTS.md
+│       ├── ARCHITECTURE.md
+│       ├── ERD.md
+│       ├── WORKFLOW.md
+│       └── DECISIONS.md
+├── docker-compose.yml
+├── Dockerfile.backend
+├── manage.py
+├── requirements.txt
+└── README.md         
 
+## Documentation
+
+Business requirements are being documented to establish the system's intended functionality and expected behavior.
+
+Technical documentation, including architecture, database design, and workflow details, will be progressively published as the implementation develops and the corresponding designs are validated.
 
 ## Setup Instructions
-You can either run the project locally or access the hosted version (coming soon).
+OPS System Management is currently intended to run in a local development environment.
 
-1. Run Locally
-Clone the repository
-git clone https://github.com/your-username/ops_system_management.git
-cd ops_system_management
+1. Configure the environment variables in the .env file.
+2. Start the application using Docker Compose.
+3. Access the application through the configured local URL.
 
-2. Backend Setup (Django/Python)
-Create and activate a virtual environment:
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Mac/Linux
-source venv/bin/activate
-# Install dependencies:
-pip install -r requirements.txt
-# Run database migrations:
-python manage.py migrate
-# Start the backend server:
-python manage.py runserver
-
-2. Frontend Setup (React.js)
-cd frontend
-npm install
-npm start
-
-3. Access the application
-Open your browser and go to:
-http://localhost:3000
-
-
-## HR Module Design Decision
-
-The HR module uses predefined choices for departments and positions rather than 
-separate database tables with full CRUD operations. This was chosen for the 
-demonstration scope of this project.
-
-**Production Consideration:** In a full production environment, departments and 
-positions would be implemented as separate models with ForeignKey relationships, 
-allowing HR administrators to dynamically add, edit, and remove departments and 
-positions through the admin interface without code changes.
-
-**Current Implementation Benefits:**
-- Simpler data model for demonstration purposes
-- Faster queries (no JOIN operations needed)
-- Data integrity through predefined choices
-- Sufficient for showcasing the core functionality
 
