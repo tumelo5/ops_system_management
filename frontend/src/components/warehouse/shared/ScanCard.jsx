@@ -93,8 +93,8 @@ export default function ScanCard({ unlocked, onSaved, onDirtyChange }) {
                     <td>{device.serial_number}</td>
                     <td>{device.client_name}</td>
                     <td>{device.batch_code}</td>
-                    <td>{device.model_name}</td>
-                    <td>{device.version_name}</td>
+                    <td>{device.model}</td>
+                    <td>{device.version}</td>
                     <td>{device.status}</td>
                     <td>
                       <button

@@ -31,27 +31,10 @@ class Client(models.Model):
         ordering = ['client_name']
 
 
-# DEVICE MODEL
-# - model_status: model can be discontinued but not deleted, to preserve historical data integrity. Default is 'Active'.
-class DeviceModel(models.Model):
-    model_name = models.CharField(max_length=100,unique=True, blank=False)
-    model_status = models.CharField(
-        max_length=50,
-        choices=Status.choices,
-        default=Status.ACTIVE
-    )
-    correction_count = models.PositiveIntegerField(default=0)
-    last_corrected_by = models.ForeignKey(CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    last_corrected_at = models.DateTimeField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.model_name} | {self.model_status}"
-
-
 # MODEL VERSION
 # - status: version status can be discontinued but not deleted, to preserve historical data integrity. Default is 'Active'.
 class DeviceModelVersion(models.Model):
-    model = models.ForeignKey(DeviceModel, on_delete=models.CASCADE, related_name='versions')
+    model = models.CharField(max_length=100, blank=False)
     version = models.CharField(max_length=50, blank=False)
     status = models.CharField(
         max_length=50,
@@ -66,7 +49,7 @@ class DeviceModelVersion(models.Model):
         unique_together = ('model', 'version')  # Ensure unique version per model
 
     def __str__(self):
-        return f"{self.model.model_name} {self.version} | {self.status}"
+        return f"{self.model} {self.version} | {self.status}"
 
 
 # BATCH
@@ -78,7 +61,9 @@ class Batch(models.Model):
     correction_count = models.PositiveIntegerField(default=0)
 
     class Meta:
-        unique_together = ('model_version', 'client')  # Ensure unique batch code per client
+        # A client can have several batches for the same product(repeat orders)
+        # Each batch is told apart by its unique
+        indexes = [models.Index(fields=['client', 'model_version'])]
 
     def __str__(self):
         return f"{self.batch_code} ({self.client.client_name})"
@@ -91,8 +76,8 @@ class DeviceStaging(models.Model):
     serial_number = models.CharField(max_length=100, unique=True)
 
     # Human-readable fields (NO FK) — snapshot at time of scan
-    model_name = models.CharField(max_length=100)
-    version_name = models.CharField(max_length=50)
+    model = models.CharField(max_length=100)
+    version = models.CharField(max_length=50)
     batch_code = models.CharField(max_length=100)
     client_name = models.CharField(max_length=100)
 
@@ -117,15 +102,12 @@ class Device(models.Model):
     ]
 
     serial_number = models.CharField(max_length=100, unique=True, null=False, blank=False)
-
     # Relationships
-    model = models.ForeignKey(DeviceModel, on_delete=models.PROTECT, null=False, blank=False)
-    version = models.ForeignKey(DeviceModelVersion, on_delete=models.PROTECT, null=False, blank=False)
+    # model = models.ForeignKey(DeviceModelVersion, on_delete=models.PROTECT, null=False, blank=False)
+    # model_version = models.ForeignKey(DeviceModelVersion, on_delete=models.PROTECT, null=False, blank=False)
     batch = models.ForeignKey(Batch, on_delete=models.PROTECT, null=False, blank=False)
-
     # Status
     device_status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='ACTIVE')
-
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -143,35 +125,6 @@ class BatchCorrection(models.Model):
     new_value_id = models.PositiveIntegerField()
     corrected_at = models.DateTimeField(auto_now_add=True)
     reason = models.CharField(max_length=255, blank=True)
-
-
-# BATCH ACTION REQUESTS used for bulk corrections/reassignments, submitted and approved together.
-class BatchActionRequestGroup(models.Model):
-    """
-    One manager review pass — may contain several individual
-    corrections/reassignments, submitted and approved together.
-    Finance approves or rejects the whole group; no partial approval.
-    """
-    class Status(models.TextChoices):
-        PENDING = 'PENDING', 'Pending'
-        APPROVED = 'APPROVED', 'Approved'
-        REJECTED = 'REJECTED', 'Rejected'
-
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
-    submitted_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='+')
-    created_at = models.DateTimeField(auto_now_add=True)
-    reviewed_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    reviewed_at = models.DateTimeField(null=True, blank=True)
-
-
-# BATCH ACTION REQUEST for a single correction/reassignment
-class BatchActionRequest(models.Model):
-    group = models.ForeignKey(BatchActionRequestGroup, on_delete=models.CASCADE, related_name='items')
-    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='action_requests')
-    proposed_client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, related_name='+')
-    proposed_batch_code = models.CharField(max_length=100)
-    reason = models.CharField(max_length=255)
-    # request_type and proposed_model_version removed — reassignment-only, no branching needed
 
 
 # DEVICE RENTAL

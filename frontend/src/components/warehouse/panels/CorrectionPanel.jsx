@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   getExistingClients,
   getExistingModels,
@@ -8,27 +8,25 @@ import {
   correctClient,
   correctModel,
   correctModelVersion,
-  submitReassignmentRequest,
-  getBatchByCode,
 } from '../../../services/CorrectionApi';
 import Notification, { useNotification } from '../shared/Notifications';
+import BatchCodeCorrectionForm from './BatchCodeCorrectionForm';
 import '../../../styles/components/correction-panel.css';
 
 /**
  * CorrectionPanel
  *
- * Two distinct, unrelated operations:
+ * Two kinds of typo correction:
  * - "Fix a new entry": edit a Client/Model/Version's value directly (same PK,
  *   nothing else changes). Always self-service — pre-link or post-link, it
  *   doesn't matter, since correcting a spelling never changes identity.
- * - "Reassign batch": a client's contract ends and the batch's devices move to
- *   a different client. Creates a new Batch under the new client; the original
- *   batch and old client are left untouched, preserving history.
+ * - "Fix a batch code": correct a mistyped batch code, only while no device has
+ *   been scanned or registered under it (see BatchCodeCorrectionForm).
  */
 
 const TABS = {
   REFERENCE: 'reference',
-  BATCH: 'batch',
+  BATCH_CODE: 'batch-code',
 };
 
 export default function CorrectionPanel({ onBack }) {
@@ -46,7 +44,7 @@ export default function CorrectionPanel({ onBack }) {
       <div className="bulk-workflow__card">
         <h2 className="bulk-workflow__card-title">Correct an entry</h2>
         <p className="correction-panel__subtitle">
-          Fix a typo in a client, model, or version — or reassign a batch to a different client.
+          Fix a typo in a client, model, version, or batch code.
         </p>
 
         <div className="correction-panel__tabs">
@@ -59,19 +57,20 @@ export default function CorrectionPanel({ onBack }) {
           </button>
           <button
             type="button"
-            className={`correction-panel__tab ${activeTab === TABS.BATCH ? 'correction-panel__tab--active' : ''}`}
-            onClick={() => { setActiveTab(TABS.BATCH); clearBanner(); }}
+            className={`correction-panel__tab ${activeTab === TABS.BATCH_CODE ? 'correction-panel__tab--active' : ''}`}
+            onClick={() => { setActiveTab(TABS.BATCH_CODE); clearBanner(); }}
           >
-            Reassign batch
+            Fix a batch code
           </button>
         </div>
 
         <Notification state={banner} />
 
-        {activeTab === TABS.REFERENCE ? (
+        {activeTab === TABS.REFERENCE && (
           <ReferenceCorrectionForm notify={notify} clearBanner={clearBanner} />
-        ) : (
-          <BatchReassignmentForm notify={notify} clearBanner={clearBanner} />
+        )}
+        {activeTab === TABS.BATCH_CODE && (
+          <BatchCodeCorrectionForm notify={notify} clearBanner={clearBanner} />
         )}
       </div>
     </section>
@@ -80,6 +79,12 @@ export default function CorrectionPanel({ onBack }) {
 
 // ---------------------------------------------------------------------------
 // Fix a new entry (Client / Model / Version) — always direct, no gating
+//
+// Model and version are one table: a "model" is a model name shared by one or
+// more version rows. So:
+//   - Client:  picked by id, renamed on its own
+//   - Model:   picked by NAME, renamed on every version row of that model
+//   - Version: pick the model name first, then pick one version row by id
 // ---------------------------------------------------------------------------
 
 const RECORD_TYPES = [
@@ -88,54 +93,78 @@ const RECORD_TYPES = [
   { value: 'version', label: 'Version' },
 ];
 
+const HINTS = {
+  client: 'This updates the client name directly. Every batch linked to this client reflects the correction.',
+  model: 'This renames the model on all of its versions. Every batch linked to them reflects the correction.',
+  version: 'This updates the version directly. Every batch linked to it reflects the correction.',
+};
+
 function ReferenceCorrectionForm({ notify, clearBanner }) {
   const [recordType, setRecordType] = useState('client');
-  const [clients, setClients] = useState([]);
-  const [models, setModels] = useState([]);
-  const [versions, setVersions] = useState([]);
-  const [selectedModelId, setSelectedModelId] = useState('');
-  const [selectedId, setSelectedId] = useState('');
+  const [clients, setClients] = useState([]); // [{ id, client_name }]
+  const [models, setModels] = useState([]); // [{ model }]  distinct model names
+  const [versions, setVersions] = useState([]); // [{ id, version }]  of the model chosen below
+  const [selectedModel, setSelectedModel] = useState(''); // model name, used on the Version tab
+  const [selected, setSelected] = useState(''); // client id, model name or version id, by tab
   const [newValue, setNewValue] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    getExistingClients().then((data) => setClients(data)).catch(() => {});
-    getExistingModels().then((data) => setModels(data)).catch(() => {});
+  const loadLists = useCallback(() => {
+    getExistingClients().then(setClients).catch(() => {});
+    getExistingModels().then(setModels).catch(() => {});
+  }, []);
+
+  const loadVersions = useCallback((modelName) => {
+    if (!modelName) {
+      setVersions([]);
+      return;
+    }
+    getVersionsByModel(modelName).then(setVersions).catch(() => {});
   }, []);
 
   useEffect(() => {
-    setSelectedId('');
-    setVersions([]);
-    if (recordType === 'version' && selectedModelId) {
-      getVersionsByModel(selectedModelId)
-        .then((data) => setVersions(data))
-        .catch(() => {});
-    }
-  }, [recordType, selectedModelId]);
+    loadLists();
+  }, [loadLists]);
 
-  const currentOptions =
-    recordType === 'client' ? clients : recordType === 'model' ? models : versions;
+  // Changing the tab or the chosen model clears the selection and loads that model's versions
+  useEffect(() => {
+    setSelected('');
+    setVersions([]);
+    if (recordType === 'version') loadVersions(selectedModel);
+  }, [recordType, selectedModel, loadVersions]);
+
+  // One shape for every tab: { value, label }. Model names are de-duplicated defensively.
+  const uniqueModels = [...new Map(models.map((m) => [m.model, m])).values()];
+  const options =
+    recordType === 'client'
+      ? clients.map((c) => ({ value: c.id, label: c.client_name }))
+      : recordType === 'model'
+      ? uniqueModels.map((m) => ({ value: m.model, label: m.model }))
+      : versions.map((v) => ({ value: v.id, label: v.version }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedId || !newValue.trim() || !reason.trim()) return;
+    if (!selected || !newValue.trim() || !reason.trim()) return;
 
     setSubmitting(true);
     clearBanner();
 
     try {
       if (recordType === 'client') {
-        await correctClient(selectedId, newValue.trim(), reason.trim());
+        await correctClient(selected, newValue.trim(), reason.trim());
       } else if (recordType === 'model') {
-        await correctModel(selectedId, newValue.trim(), reason.trim());
+        await correctModel(selected, newValue.trim(), reason.trim());
+        setSelectedModel(''); // the old name no longer exists
       } else {
-        await correctModelVersion(selectedId, newValue.trim(), reason.trim());
+        await correctModelVersion(selected, newValue.trim(), reason.trim());
       }
       notify('success', 'Updated successfully.');
       setNewValue('');
-      setSelectedId('');
+      setSelected('');
       setReason('');
+      loadLists(); // every screen reads these lists, so refresh them
+      if (recordType === 'version') loadVersions(selectedModel);
     } catch (err) {
       const detail = err?.response?.data?.error || 'Something went wrong.';
       notify('error', detail);
@@ -143,6 +172,13 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
       setSubmitting(false);
     }
   };
+
+  const typoPrompt =
+    recordType === 'client'
+      ? 'Select client with the typo'
+      : recordType === 'model'
+      ? 'Select model with the typo'
+      : 'Select version with the typo';
 
   return (
     <form onSubmit={handleSubmit}>
@@ -159,10 +195,10 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
       {recordType === 'version' && (
         <div className="bulk-workflow__fields">
           <div className="bulk-workflow__field">
-            <select value={selectedModelId} onChange={(e) => setSelectedModelId(e.target.value)}>
+            <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
               <option value="">Select a model</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>{m.model_name}</option>
+              {uniqueModels.map((m) => (
+                <option key={m.model} value={m.model}>{m.model}</option>
               ))}
             </select>
           </div>
@@ -172,19 +208,13 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
       <div className="bulk-workflow__fields">
         <div className="bulk-workflow__field">
           <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            disabled={recordType === 'version' && !selectedModelId}
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            disabled={recordType === 'version' && !selectedModel}
           >
-            <option value="">
-              {recordType === 'client' ? 'Select client with the typo'
-                : recordType === 'model' ? 'Select model with the typo'
-                : 'Select version with the typo'}
-            </option>
-            {currentOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.client_name || opt.model_name || opt.version}
-              </option>
+            <option value="">{typoPrompt}</option>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
@@ -211,163 +241,13 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
         <button
           type="submit"
           className="bulk-workflow__btn bulk-workflow__btn--primary"
-          disabled={submitting || !selectedId || !newValue.trim() || !reason.trim()}
+          disabled={submitting || !selected || !newValue.trim() || !reason.trim()}
         >
           {submitting ? 'Saving…' : 'Save correction'}
         </button>
       </div>
 
-      <p className="correction-panel__hint">
-        This updates the value directly — every batch already linked to this entry
-        will reflect the correction automatically.
-      </p>
+      <p className="correction-panel__hint">{HINTS[recordType]}</p>
     </form>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Reassign batch — client-only, creates a new Batch under the new client
-// ---------------------------------------------------------------------------
-
-function BatchReassignmentForm({ notify, clearBanner }) {
-  const [batchCode, setBatchCode] = useState('');
-  const [batch, setBatch] = useState(null);
-  const [lookingUp, setLookingUp] = useState(false);
-
-  const [clients, setClients] = useState([]);
-  const [newClientId, setNewClientId] = useState('');
-  const [newBatchCode, setNewBatchCode] = useState('');
-  const [reason, setReason] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    getExistingClients().then((data) => setClients(data)).catch(() => {});
-  }, []);
-
-  const handleLookup = async (e) => {
-    e.preventDefault();
-    if (!batchCode.trim()) return;
-
-    setLookingUp(true);
-    clearBanner();
-    setBatch(null);
-
-    try {
-      const data = await getBatchByCode(batchCode.trim());
-      const found = Array.isArray(data) ? data[0] : data;
-      if (!found) {
-        notify('error', `No batch found with code "${batchCode}".`);
-      } else {
-        setBatch(found);
-      }
-    } catch (err) {
-      notify('error', 'Could not look up that batch.');
-    } finally {
-      setLookingUp(false);
-    }
-  };
-
-  const handleReassign = async (e) => {
-    e.preventDefault();
-    if (!batch || !newClientId || !newBatchCode.trim() || !reason.trim()) return;
-
-    setSubmitting(true);
-    clearBanner();
-
-    try {
-      await submitReassignmentRequest(batch.id, {
-        clientId: newClientId,
-        batchCode: newBatchCode.trim(),
-        reason: reason.trim(),
-      });
-      notify('success', 'Reassignment request submitted — awaiting Finance approval.');
-      setBatch(null);
-      setBatchCode('');
-      setNewClientId('');
-      setNewBatchCode('');
-      setReason('');
-    } catch (err) {
-      const detail = err?.response?.data?.error || 'Something went wrong.';
-      notify('error', detail);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div>
-      <form className="bulk-workflow__fields" onSubmit={handleLookup} style={{ alignItems: 'flex-start' }}>
-        <div className="bulk-workflow__field">
-          <input
-            placeholder="Enter the batch code"
-            value={batchCode}
-            onChange={(e) => setBatchCode(e.target.value)}
-          />
-        </div>
-        <div className="bulk-workflow__actions" style={{ marginTop: 0 }}>
-          <button
-            type="submit"
-            className="bulk-workflow__btn"
-            disabled={lookingUp || !batchCode.trim()}
-          >
-            {lookingUp ? 'Looking up…' : 'Find batch'}
-          </button>
-        </div>
-      </form>
-
-      {batch && (
-        <form onSubmit={handleReassign}>
-          <div className="correction-panel__current">
-            <span className="correction-panel__current-label">Currently on file</span>
-            <span className="correction-panel__current-value">
-              {batch.client_name} — {batch.model_name} {batch.version}
-            </span>
-          </div>
-
-          <div className="bulk-workflow__fields">
-            <div className="bulk-workflow__field">
-              <select value={newClientId} onChange={(e) => setNewClientId(e.target.value)}>
-                <option value="">Select new client</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.client_name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="bulk-workflow__field">
-              <input
-                placeholder="New batch code"
-                value={newBatchCode}
-                onChange={(e) => setNewBatchCode(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="bulk-workflow__fields">
-            <div className="bulk-workflow__field">
-              <input
-                placeholder="Reason for reassignment"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="bulk-workflow__actions">
-            <button
-              type="submit"
-              className="bulk-workflow__btn bulk-workflow__btn--primary"
-              disabled={submitting || !newClientId || !newBatchCode.trim() || !reason.trim()}
-            >
-              {submitting ? 'Saving…' : 'Reassign batch'}
-            </button>
-          </div>
-
-          <p className="correction-panel__hint">
-            This creates a new batch under the selected client and moves this batch's
-            devices to it. The original batch and client stay exactly as they were.
-          </p>
-        </form>
-      )}
-    </div>
   );
 }

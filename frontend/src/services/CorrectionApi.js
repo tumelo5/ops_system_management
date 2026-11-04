@@ -10,10 +10,11 @@ export const correctClient = async (clientId, clientName, reason) => {
   return res.data;
 };
 
-// Correction Workflow — edit a Model in place (same pre-link restriction)
-export const correctModel = async (modelId, modelName, reason) => {
-  const res = await api.patch(`/warehouse/models/${modelId}/correct/`, {
-    model_name: modelName,
+// Correct a model: renames it on every one of its versions
+export const correctModel = async (oldName, newName, reason) => {
+  const res = await api.patch("/warehouse/models/correct/", {
+    model: oldName,
+    new_model: newName,
     reason,
   });
   return res.data;
@@ -28,19 +29,17 @@ export const correctModelVersion = async (versionId, version, reason) => {
   return res.data;
 };
 
-// Correction Workflow — repoint a Batch's client and/or model_version
-// (the safe path once a record is already linked/scanned)
-export const submitReassignmentRequest = async (batchId, { clientId, batchCode, reason }) => {
-  const res = await api.post(`/warehouse/batches/${batchId}/reassign-request/`, {
-    client_id: clientId,
-    batch_code:batchCode,
-    reason,
-  });
+// Batch code correction: look a batch up by its code
+export const findBatchForCorrection = async (batchCode) => {
+  const res = await api.get("/warehouse/batch-codes/lookup/", { params: { batch_code: batchCode } });
   return res.data;
 };
 
-// Correction Workflow — look up a batch by its code, to correct it
-export const getBatchByCode = async (batchCode) => {
-  const res = await api.get(`/warehouse/batches/list/?batch_code=${batchCode}`);
+// Correct a mistyped batch code (only while nothing has been scanned or registered under it)
+export const correctBatchCode = async (batchId, newCode, reason) => {
+  const res = await api.patch(`/warehouse/batch-codes/${batchId}/correct/`, {
+    batch_code: newCode,
+    reason,
+  });
   return res.data;
 };

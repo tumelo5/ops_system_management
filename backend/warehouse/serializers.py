@@ -1,7 +1,6 @@
-from .models import (Client, DeviceModel, 
+from .models import (Client, 
 DeviceStaging, Device, 
 Batch, DeviceModelVersion, 
-BatchActionRequestGroup, 
 DeviceRental
 )
 
@@ -66,14 +65,6 @@ class BatchSerializer(serializers.ModelSerializer):
         }
     )
 
-    model_version = serializers.PrimaryKeyRelatedField(
-        queryset=DeviceModelVersion.objects.all(),
-        required=False,
-        error_messages={
-            "does_not_exist": "Selected device model version does not exist.",
-            }
-    )
-
     def to_internal_value(self, data):
         errors = {}
         field_order = ['batch_code', 'client']
@@ -98,61 +89,44 @@ class BatchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Batch
-        fields = ['client', 'batch_code', 'model_version']
+        fields = ['client', 'batch_code']
 
 
-class DeviceModelSerializer(serializers.ModelSerializer):
-    exists_message = "Model '{value}' already exists. Select the existing model instead in Linking section."
+# class DeviceModelSerializer(serializers.ModelSerializer):
+#     exists_message = "Model '{value}' already exists. Select the existing model instead in Linking section."
 
-    model_name = serializers.CharField(
-        max_length=100,
-        error_messages={
-            "required":   "Model name is required.",
-            "null":       "Model name is required.",
-            "blank":      "Model name is required.",
-            "max_length": "Model name must be 100 characters or fewer.",
-        }
-    )
+#     model = serializers.CharField(
+#         max_length=100,
+#         error_messages={
+#             "required":   "Model name is required.",
+#             "null":       "Model name is required.",
+#             "blank":      "Model name is required.",
+#             "max_length": "Model name must be 100 characters or fewer.",
+#         }
+#     )
 
-    def validate_model_name(self, value):
-        normalized = value.strip().lower()
-        logger.debug(f"{self.__class__.__name__} | validate_model_name | raw='{value}' normalized='{normalized}'")
+#     def validate_model(self, value):
+#         normalized = value.strip().lower()
+#         logger.debug(f"{self.__class__.__name__} | validate_model | raw='{value}' normalized='{normalized}'")
 
-        existing = DeviceModel.objects.filter(model_name=normalized)
-        if self.instance is not None:          # a correction may keep its own name
-            existing = existing.exclude(pk=self.instance.pk)
-        if existing.exists():
-            raise serializers.ValidationError(
-                self.exists_message.format(value=value)
-            )
-        return normalized
+#         existing = DeviceModel.objects.filter(model=normalized)
+#         if self.instance is not None:          # a correction may keep its own name
+#             existing = existing.exclude(pk=self.instance.pk)
+#         if existing.exists():
+#             raise serializers.ValidationError(
+#                 self.exists_message.format(value=value)
+#             )
+#         return normalized
 
-    class Meta:
-        model = DeviceModel
-        fields = ['model_name', 'model_status']
-
-
-# Add Clients: the model is optional. Blank or missing means "no model yet, pick it in Linking".
-class OptionalDeviceModelSerializer(DeviceModelSerializer):
-    exists_message = "Model '{name}' already exists. Leave the model blank and select it in the Linking section."
-
-
-    model_name = serializers.CharField(
-        max_length=100, required=False, allow_blank=True, allow_null=True,
-        error_messages={"max_length": "Model name must be 100 characters or fewer."},
-    )
-
-    def validate_model_name(self, value):
-        if not value or not value.strip():
-            return ""
-        return super().validate_model_name(value)
-
+#     class Meta:
+#         model = DeviceModel
+#         fields = ['model', 'model_status']
 
 # Outgoing data for model version retrieval
-class DeviceModelNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DeviceModel
-        fields = ['id', 'model_name']
+# class DeviceModelNameSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = DeviceModel
+#         fields = ['id', 'model']
 
 
 # Keep your existing imports. UniqueTogetherValidator and ModelVersionListSerializer are
@@ -171,6 +145,7 @@ class DeviceModelVersionSerializer(serializers.ModelSerializer):
     required_fields = ['version', 'model']
 
     version = serializers.CharField(
+        max_length=100,
         error_messages={
             "required": "Model version is required.",
             "blank":    "Model version is required.",
@@ -178,8 +153,8 @@ class DeviceModelVersionSerializer(serializers.ModelSerializer):
         }
     )
 
-    model = serializers.PrimaryKeyRelatedField(
-        queryset=DeviceModel.objects.all(),
+    model = serializers.CharField(
+        max_length=100,
         error_messages={
             "required":       "Device model is required.",
             "null":           "Device model is required.",
@@ -187,33 +162,37 @@ class DeviceModelVersionSerializer(serializers.ModelSerializer):
         }
     )
 
-    def to_internal_value(self, data):
-        errors = {}
-
-        for field in self.required_fields:
-            value = data.get(field)
-            if not value and value != 0:
-                errors[field] = [self.fields[field].error_messages.get('required', f'{field} is required.')]
-
-        if errors:
-            raise serializers.ValidationError(errors)  # stops here, super() never runs
-
-        return super().to_internal_value(data)
+    def validate_model(self, value):
+        normalized = value.strip().lower()
+        logger.warning(f"DeviceModelVersionSerializer | validate_model | raw='{value}' normalized='{normalized}'")
+        return normalized   
 
     def validate_version(self, value):
         normalized = value.strip().lower()
-        logger.debug(f"{self.__class__.__name__} | validate_version | raw='{value}' normalized='{normalized}'")
-        if not normalized:
-            raise serializers.ValidationError("Model version is required.")
+        logger.warning(f"DeviceModelVersionSerializer | validate_version | raw='{value}' normalized='{normalized}'")
         return normalized
 
     class Meta:
         model = DeviceModelVersion
-        fields = ['version', 'model', 'status']
-        # ModelSerializer adds a UniqueTogetherValidator automatically from the model's
-        # unique_together, so it has to be switched off explicitly. The database
-        # constraint on (model, version) still guarantees there is only one record.
+        fields = ['model', 'version']
+        # An existing (model, version) is valid input: it is reused, not rejected.
+        # Without this, DRF adds a UniqueTogetherValidator from the model's unique_together.
         validators = []
+
+# Add Clients: the model is optional. Blank or missing means "no model yet, pick it in Linking".
+class OptionalDeviceModelSerializer(DeviceModelVersionSerializer):
+    exists_message = "Model '{name}' already exists. Leave the model blank and select it in the Linking section."
+
+
+    model = serializers.CharField(
+        max_length=100, required=False, allow_blank=True, allow_null=True,
+        error_messages={"max_length": "Model name must be 100 characters or fewer."},
+    )
+
+    def validate_model(self, value):
+        if not value or not value.strip():
+            return ""
+        return super().validate_model(value)
 
 
 # Version text for a model that does not exist yet (Case 3: new model + new version).
@@ -242,8 +221,8 @@ class DeviceStagingSerializer(serializers.ModelSerializer):
             'serial_number',
             'batch_code',
             'client_name',
-            'model_name',
-            'version_name',
+            'model',
+            'version',
             'status',
         ]
         read_only_fields = fields
@@ -269,20 +248,6 @@ class BatchCorrectionSerializer(serializers.Serializer):
 class ReferenceCorrectionSerializer(serializers.Serializer):
     field = serializers.CharField()
     value = serializers.CharField()
-
-
-class BatchDetailSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    batch_code = serializers.CharField()
-    client_name = serializers.CharField(source='client.client_name')
-    model_name = serializers.CharField(source='model_version.model.model_name')
-    version = serializers.CharField(source='model_version.version')
-
-
-class BatchReassignmentRequestSerializer(serializers.Serializer):
-    client_id = serializers.IntegerField()
-    batch_code = serializers.CharField(max_length=100)
-    reason = serializers.CharField(max_length=255, allow_blank=False)
 
 
 class DeviceRentalSerializer(serializers.ModelSerializer):
@@ -322,15 +287,14 @@ class RentableDeviceSerializer(serializers.ModelSerializer):
     """Response of the scan-time check on Assign Rental."""
  
     # ASSUMPTION: Batch -> model_version -> model / version. If your scan endpoint
-    # already has a device serializer returning serial_number, model_name and
+    # already has a device serializer returning serial_number, model and
     # version_name, reuse that one instead.
-    model_name = serializers.CharField(source="batch.model_version.model.model_name", read_only=True)
-    version_name = serializers.CharField(source="batch.model_version.version", read_only=True)
+    model = serializers.CharField(source="batch.model_version.model", read_only=True)
+    version= serializers.CharField(source="batch.model_version.version", read_only=True)
  
     class Meta:
         model = Device
-        fields = ["serial_number", "model_name", "version_name"]
- 
+        fields = ["serial_number", "model", "version"]
  
 class ActiveRentalSerializer(serializers.ModelSerializer):
     rental_id = serializers.IntegerField(source="id", read_only=True)

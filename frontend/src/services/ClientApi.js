@@ -1,32 +1,32 @@
 import api from './axios';
 
-// Client Workflow — Bulk clients (base step: create clients + models)
+// Client Workflow — Bulk clients (base step: create clients only)
+// payload: { clients: [{ client_name }] }
 export const submitBulkClientsBase = async (payload) => {
   const res = await api.post("/warehouse/clients/bulk/base/", payload);
   return res.data;
 };
 
-// Client Workflow — Bulk clients (linking step: batch codes + versions)
+// Client Workflow — Bulk clients (linking step: batch code + model + version per client)
+// payload: { links: [{ client, model, version, batch_code }] }
 export const submitBulkClientsLinking = async (payload) => {
   const res = await api.post("/warehouse/clients/bulk/links/", payload);
   return res.data;
 };
 
 // Client Workflow — Existing client: validate selection
+// payload: { client, version }   (version = id of the model/version row)
+// response: { batch_exists, batch_code, message? }
 export const validateExistingSelection = async (payload) => {
   const res = await api.post("/warehouse/clients/existing/validate/", payload);
   return res.data;
 };
 
-// Client Workflow — Existing client: new version
-export const submitNewVersion = async (payload) => {
-  const res = await api.post("/warehouse/clients/existing/new-version/", payload);
-  return res.data;
-};
-
-// Client Workflow — Existing client: new model
-export const submitNewModel = async (payload) => {
-  const res = await api.post("/warehouse/clients/existing/new-model/", payload);
+// Client Workflow — Existing client: link a new batch code to a model and version.
+// The model/version row is reused if it exists and created if it does not.
+// payload: { client, model, version, batch_code }
+export const submitExistingClientBatch = async (payload) => {
+  const res = await api.post("/warehouse/clients/existing/batch/", payload);
   return res.data;
 };
 
@@ -54,15 +54,17 @@ export const getExistingClients = async () => {
   return res.data;
 };
 
-// Get existing models
+// Get existing models: distinct model names, e.g. [{ model }]
 export const getExistingModels = async () => {
   const res = await api.get("/warehouse/models/list/");
   return res.data;
 };
 
-// Get versions by model
-export const getVersionsByModel = async (modelId) => {
-  const res = await api.get(`/warehouse/versions/list/?model=${modelId}`);
+// Get the versions of a model, by model name: [{ id, version }]
+export const getVersionsByModel = async (modelName) => {
+  const res = await api.get("/warehouse/versions/list/", {
+    params: { model: modelName },
+  });
   return res.data;
 };
 
@@ -114,5 +116,15 @@ export const endRentals = async (payload) => {
 
 export const getClientsAwaitingLinking = async () => {
   const res = await api.get("/warehouse/clients/awaiting-linking/"); // same instance and prefix as getExistingClients
+  return res.data;
+};
+
+// Correct a model: renames it on every one of its versions
+export const correctModel = async (oldName, newName, reason) => {
+  const res = await api.patch("/warehouse/models/correct/", {
+    model: oldName,
+    new_model: newName,
+    reason,
+  });
   return res.data;
 };

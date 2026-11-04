@@ -1,9 +1,8 @@
 from django.db import transaction
 from .models import (
-    Client, Batch, DeviceModel, 
+    Client, Batch,
     DeviceModelVersion, Device, 
     DeviceStaging, BatchCorrection,
-    BatchActionRequestGroup, BatchActionRequest,
     DeviceRental, CompanyProfile
 )
 import logging
@@ -13,42 +12,8 @@ from django.conf import settings
 from datetime import timedelta
 
 logger = logging.getLogger("warehouse.services")
-# Replace the whole ClientService class in services.py with this one.
-# The imports at the top of services.py and every class below ClientService
-# (DeviceService, BatchService, ...) stay exactly as they are.
-#
-# Data rules:
-#   - a model is recorded once (model_name is unique)
-#   - a version is one shared record per (model, version)
-#   - a batch links ONE client to ONE (model, version) and carries the batch code
-#   - a client has at most one batch per (model, version)
-#
-# Every flow (Add Clients, Linking, Existing Client cases) goes through the three
-# helpers below, so these rules live in one place and the database constraints
-# are the last line of defence for all of them.
-
 
 class ClientService:
-
-    # ------------------------------------------------------------------
-    # Shared helpers
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _create_model(model_name):
-        """
-        Record a NEW model. Strict on purpose: if the name already exists, the user is told
-        to select the existing model instead of creating another.
-        """
-        try:
-            # savepoint, so a duplicate does not poison the surrounding transaction
-            with transaction.atomic():
-                model = DeviceModel.objects.create(model_name=model_name)
-        except IntegrityError:
-            logger.warning(f"_create_model | model already exists | model_name={model_name}")
-            raise ValueError(f"Model '{model_name}' already exists. Select the existing model instead.")
-
-        logger.info(f"_create_model | created model_id={model.id} model_name={model.model_name}")
-        return model
 
     @staticmethod
     def _resolve_model_version(model, version):
@@ -58,27 +23,18 @@ class ClientService:
         """
         model_version, created = DeviceModelVersion.objects.get_or_create(model=model, version=version)
         logger.info(
-            f"_resolve_model_version | model_id={model.id} version={model_version.version} created={created}"
+            f"_resolve_model_version | model={model} version={model_version.version} created={created}"
         )
         return model_version, created
 
     @staticmethod
     def _create_batch(client, batch_code, model_version):
         """
-        Create the batch that links the client to the version.
-        A client has one batch per (model, version): if it already has one, a new batch code
-        is not allowed and the existing code stays.
+        Create a batch for the client and product. A client can have several batches for the
+        same model and version (repeat orders); each needs its own unique batch code.
         """
-        if Batch.objects.filter(client=client, model_version=model_version).exists():
-            logger.warning(
-                f"_create_batch | client already has this version | client_id={client.id} version_id={model_version.id}"
-            )
-            raise ValueError(
-                "This client already has a batch for this model and version. "
-                "Select the existing version to keep its batch code."
-            )
-
         try:
+            # savepoint, so a duplicate does not poison the surrounding transaction
             with transaction.atomic():
                 batch = Batch.objects.create(client=client, batch_code=batch_code, model_version=model_version)
         except IntegrityError:
@@ -88,13 +44,11 @@ class ClientService:
         logger.info(f"_create_batch | created batch_id={batch.id} batch_code={batch.batch_code}")
         return batch
 
-    # ------------------------------------------------------------------
+    
     # Add Clients: base step and linking step
-    # ------------------------------------------------------------------
     @staticmethod
     @transaction.atomic
     def create_bulk_base(clients_data):
-        # The created (created = []) list is not in use, look inot it for code cleaning
         logger.info(f"create_bulk_base | starting | count={len(clients_data)}")
         created = []
 
@@ -105,14 +59,8 @@ class ClientService:
                 logger.warning(f"create_bulk_base | client already exists | client_name={entry['client_name']}")
                 raise ValueError(f"Client '{entry['client_name']}' already exists.")
 
-            # The model is optional: leave it blank when the model already exists
-            # and select it in Linking instead. (The serializer must allow a blank model_name.)
-            device_model = None
-            if entry.get("model_name"):
-                device_model = ClientService._create_model(entry["model_name"])
-
-            created.append({"client": client, "device_model": device_model})
-            logger.info(f"create_bulk_base | created client={client.client_name} model={device_model}")
+            created.append(client)
+            logger.info(f"create_bulk_base | created client={client.client_name}")
 
         logger.info(f"create_bulk_base | success | total_created={len(created)}")
         return created
@@ -144,68 +92,28 @@ class ClientService:
         logger.info(f"create_bulk_links | success | total_created={len(created)}")
         return created
 
-    # ------------------------------------------------------------------
-    # Existing Client: Case 2 and Case 3 (Case 1 is validate_existing_selection)
-    # ------------------------------------------------------------------
     @staticmethod
     @transaction.atomic
-    def create_existing_client_new_version(client_id, model_id, new_version, batch_code):
-        """
-        Case 2: Existing client, existing model, new version -> new batch code.
-
-        If the version already exists for the model (another client uses it) it is reused.
-        Only the batch is new. new_version is expected to arrive normalised from the serializer.
-        """
-        logger.info(f"create_existing_client_new_version | client_id={client_id} model_id={model_id} new_version={new_version} batch_code={batch_code}")
-
+    def create_existing_client_batch(client_id, model, version, batch_code):
+        """Existing client, any model and version, new batch code. The product is reused if it exists."""
+        logger.info(f"create_existing_client_batch | client_id={client_id} model={model} version={version} batch_code={batch_code}")
         try:
             client = Client.objects.get(id=client_id)
         except Client.DoesNotExist:
-            logger.warning(f"create_existing_client_new_version | client not found | client_id={client_id}")
+            logger.warning(f"create_existing_client_batch | client not found | client_id={client_id}")
             raise ValueError(f"Client with id '{client_id}' does not exist.")
 
-        try:
-            model = DeviceModel.objects.get(id=model_id)
-        except DeviceModel.DoesNotExist:
-            logger.warning(f"create_existing_client_new_version | model not found | model_id={model_id}")
-            raise ValueError(f"Device model with id '{model_id}' does not exist.")
-
-        model_version, _ = ClientService._resolve_model_version(model, new_version)
+        model_version, _ = ClientService._resolve_model_version(model, version)
         batch = ClientService._create_batch(client, batch_code, model_version)
 
-        logger.info(f"create_existing_client_new_version | success | batch_id={batch.id} version_id={model_version.id}")
+        logger.info(f"create_existing_client_batch | success | batch_id={batch.id} version_id={model_version.id}")
         return batch
 
-    @staticmethod
-    @transaction.atomic
-    def create_existing_client_new_model(client_id, new_model_name, new_version, batch_code):
-        """
-        Case 3: Existing client, new model, new version -> new batch code.
 
-        The model must really be new: if the name already exists the user is told to select
-        the existing model instead.
-        """
-        logger.info(f"create_existing_client_new_model | client_id={client_id} new_model_name={new_model_name} new_version={new_version} batch_code={batch_code}")
-
-        try:
-            client = Client.objects.get(id=client_id)
-        except Client.DoesNotExist:
-            logger.warning(f"create_existing_client_new_model | client not found | client_id={client_id}")
-            raise ValueError(f"Client with id '{client_id}' does not exist.")
-
-        model = ClientService._create_model(new_model_name)
-        model_version, _ = ClientService._resolve_model_version(model, new_version)
-        batch = ClientService._create_batch(client, batch_code, model_version)
-
-        logger.info(f"create_existing_client_new_model | success | batch_id={batch.id} model_id={model.id} version_id={model_version.id}")
-        return batch
-
-    # ------------------------------------------------------------------
     # Single-record helpers (kept for existing callers)
-    # ------------------------------------------------------------------
     @staticmethod
-    def create_device_model(model_name):
-        return ClientService._create_model(model_name)
+    def create_device_model(model):
+        return ClientService._create_model(model)
 
     @staticmethod
     def create_client_batchcode(client, batch_code, model_version):
@@ -216,9 +124,7 @@ class ClientService:
         model_version, _ = ClientService._resolve_model_version(model, version)
         return model_version
 
-    # ------------------------------------------------------------------
     # Lookups
-    # ------------------------------------------------------------------
     @staticmethod
     def get_clients_names():
         logger.info("get_clients_names | fetching all clients")
@@ -234,51 +140,68 @@ class ClientService:
         )
 
     @staticmethod
-    def get_device_models():
-        logger.info("get_device_models | fetching all device models")
-        return DeviceModel.objects.values('id', 'model_name').order_by('model_name')
-
-    @staticmethod
-    def get_device_model_versions(model_id):
-        logger.info(f"get_device_model_versions | model_id={model_id}")
-        return DeviceModelVersion.objects.filter(model_id=model_id).values('id', 'version').order_by('version')
-
-    @staticmethod
-    def validate_existing_selection(client_id, model_id, version_id):
-        """
-        Case 1: Validates that a batch exists for the given client, model, and version.
-        The batch code stays the same: it is returned so scanning can continue.
-
-        Called before unlocking the scan section to surface missing batch
-        errors early rather than letting the scan reject an unknown batch code.
-        """
-        logger.info(f"validate_existing_selection | client_id={client_id} model_id={model_id} version_id={version_id}")
-
+    def rename_model(old_name, new_name, user, reason=""):
+        """Rename a model: every (model, version) row of that model takes the new name."""
         try:
-            client = Client.objects.get(id=client_id)
-        except Client.DoesNotExist:
-            logger.warning(f"validate_existing_selection | client not found | client_id={client_id}")
+            with transaction.atomic():
+                rows = list(DeviceModelVersion.objects.select_for_update().filter(model=old_name))
+                if not rows:
+                    raise DeviceModelVersion.DoesNotExist
+                if DeviceModelVersion.objects.filter(model=new_name).exists():
+                    raise ValueError(f"A model named '{new_name}' already exists.")
+
+                now = timezone.now()
+                for row in rows:
+                    row.model = new_name
+                    row.correction_count += 1
+                    row.last_corrected_by = user
+                    row.last_corrected_at = now
+                DeviceModelVersion.objects.bulk_update(
+                    rows, ['model', 'correction_count', 'last_corrected_by', 'last_corrected_at']
+                )
+                logger.info(f"rename_model | {old_name} -> {new_name} | rows={len(rows)} | by={user} | reason={reason}")
+        except IntegrityError:
+            logger.warning(f"rename_model | duplicate | {old_name} -> {new_name}")
+            raise ValueError("That model name already exists.")
+
+    @staticmethod
+    def get_device_models():
+        logger.info("get_device_models | fetching distinct model names")
+        return DeviceModelVersion.objects.values('model').distinct().order_by('model')
+
+    @staticmethod
+    def get_device_model_versions(model):
+        logger.info(f"get_device_model_versions | model={model}")
+        return (
+            DeviceModelVersion.objects.filter(model=model)
+            .values('id', 'version')
+            .order_by('version')
+        )
+
+    @staticmethod
+    def get_client_batches_for_version(client_id, version_id):
+        """
+        The batches a client already has for a product (model and version), oldest first.
+        An empty list means the client has not bought this product yet.
+        """
+        logger.info(f"get_client_batches_for_version | client_id={client_id} version_id={version_id}")
+
+        if not Client.objects.filter(id=client_id).exists():
+            logger.warning(f"get_client_batches_for_version | client not found | client_id={client_id}")
             raise ValueError(f"Client with id '{client_id}' does not exist.")
 
-        try:
-            version = DeviceModelVersion.objects.select_related('model').get(id=version_id, model_id=model_id)
-        except DeviceModelVersion.DoesNotExist:
-            logger.warning(f"validate_existing_selection | version not found | version_id={version_id} model_id={model_id}")
-            raise ValueError("Version does not exist for the selected model.")
+        if not DeviceModelVersion.objects.filter(id=version_id).exists():
+            logger.warning(f"get_client_batches_for_version | version not found | version_id={version_id}")
+            raise ValueError("Selected model and version do not exist.")
 
-        try:
-            batch = Batch.objects.get(client=client, model_version=version)
-        except Batch.DoesNotExist:
-            logger.warning(f"validate_existing_selection | no batch found | client_id={client_id} version_id={version_id}")
-            # Versions are shared, so the version can exist for other clients only.
-            raise ValueError("This client has no batch for that model and version yet.")
+        return list(
+            Batch.objects.filter(client_id=client_id, model_version_id=version_id)
+            .order_by('id')
+            .values('id', 'batch_code')
+        )
 
-        logger.info(f"validate_existing_selection | success | batch_code={batch.batch_code}")
-        return batch
-
-    # ------------------------------------------------------------------
+   
     # Corrections
-    # ------------------------------------------------------------------
     @staticmethod
     def correct_reference(model_class, instance_id, new_data, user, reason=""):
         try:
@@ -312,7 +235,7 @@ class DeviceService:
         try:
             batch = Batch.objects.select_related(
                 'client',
-                'model_version__model'
+                'model_version'
             ).get(batch_code=batch_code)
         except Batch.DoesNotExist:
             logger.warning(f"scan_device | batch not found | batch_code={batch_code}")
@@ -323,8 +246,8 @@ class DeviceService:
                 serial_number=serial_number,
                 batch_code=batch.batch_code,
                 client_name=batch.client.client_name,
-                model_name=batch.model_version.model.model_name,
-                version_name=batch.model_version.version,
+                model=batch.model_version.model,
+                version=batch.model_version.version,
                 status='PENDING'
             )
         except IntegrityError:
@@ -382,7 +305,7 @@ class DeviceService:
         batch_codes = {s.batch_code for s in staging_map.values()}
         batch_map = {
             b.batch_code: b
-            for b in Batch.objects.select_related('model_version__model').filter(batch_code__in=batch_codes)
+            for b in Batch.objects.select_related('model_version').filter(batch_code__in=batch_codes)
         }
 
         confirmed = []
@@ -394,8 +317,8 @@ class DeviceService:
             device = Device.objects.create(
                 serial_number=staging.serial_number,
                 batch=batch,
-                model=batch.model_version.model,
-                version=batch.model_version,
+                # model=batch.model_version.model,
+                # version=batch.model_version,
                 device_status='ACTIVE'
             )
 
@@ -411,18 +334,6 @@ class DeviceService:
 class BatchService:
 
     @staticmethod
-    def get_batch_by_code(batch_code):
-        logger.info(f"get_batch_by_code | batch_code={batch_code}")
-        try:
-            batch = Batch.objects.select_related('client', 'model_version__model').get(batch_code=batch_code)
-        except Batch.DoesNotExist:
-            logger.warning(f"get_batch_by_code | not found | batch_code={batch_code}")
-            raise
-        logger.info(f"get_batch_by_code | success | batch_id={batch.id}")
-        return batch
-
-
-    @staticmethod
     def flag_downstream_records(batch):
         # Repairs example — same pattern for other departments
         stale_repairs = RepairRecord.objects.filter(
@@ -431,137 +342,36 @@ class BatchService:
         )
         stale_repairs.update(needs_reverification=True)
 
-    
     @staticmethod
-    def reassign_batch(item, reviewer):   # was _apply_reassignment
-        old_batch = item.batch
+    def correct_batch_code(batch_id, new_code, user, reason=""):
+        """
+        Fix a mistyped batch code. Allowed only while nothing has been scanned or registered
+        under it: a serial number carries its batch code, so a code that real serial numbers
+        already use was not a typo.
+        """
         try:
-            new_batch = Batch.objects.create(
-                client_id=item.proposed_client_id,
-                batch_code=item.proposed_batch_code,
-                model_version=old_batch.model_version,
-            )
+            with transaction.atomic():
+                batch = Batch.objects.select_for_update().get(id=batch_id)
+                old_code = batch.batch_code
+
+                if new_code == old_code:
+                    raise CorrectionConflict("The new batch code is the same as the current one.")
+
+                if Device.objects.filter(batch=batch).exists() or DeviceStaging.objects.filter(batch_code=old_code).exists():
+                    raise CorrectionConflict(
+                        "Devices have already been scanned or registered under this batch code, so it can't be corrected."
+                    )
+
+                batch.batch_code = new_code
+                batch.correction_count += 1
+                batch.corrected_at = timezone.now()
+                batch.save(update_fields=['batch_code', 'correction_count', 'corrected_at'])
+
+                logger.info(f"correct_batch_code | batch_id={batch_id} | {old_code} -> {new_code} | by={user} | reason={reason}")
+                return batch
         except IntegrityError:
-            raise ValueError(f"Batch code '{item.proposed_batch_code}' already exists.")
-
-        moved = Device.objects.filter(batch=old_batch).update(batch=new_batch)
-        logger.info(f"reassign_batch | old={old_batch.batch_code} | new={new_batch.batch_code} | devices_moved={moved}")
-
-
-class BatchActionService:
-
-    @staticmethod
-    @transaction.atomic
-    def submit_group(manager, items):
-        """
-        Manager bundles up every reassignment found during one review pass
-        into a single group. Nothing is applied yet — this only logs the
-        request and puts it in Finance's queue.
-
-        items: list of dicts, each shaped like:
-            {
-                "batch_id": int,
-                "proposed_client_id": int,
-                "proposed_batch_code": str,
-                "reason": str,
-            }
-        """
-        if not items:
-            raise ValueError("At least one reassignment is required.")
-
-        group = BatchActionRequestGroup.objects.create(
-            submitted_by=manager,
-            status=BatchActionRequestGroup.Status.PENDING,
-        )
-
-        request_objects = []
-        for item in items:
-            batch_id = item.get("batch_id")
-            reason = item.get("reason", "").strip()
-
-            if not reason:
-                raise ValueError("Every item in the request needs a reason.")
-            if not item.get("proposed_client_id"):
-                raise ValueError("A reassignment needs a proposed client.")
-            if not item.get("proposed_batch_code"):
-                raise ValueError("A reassignment needs a new batch code for the receiving client.")
-
-            request_objects.append(BatchActionRequest(
-                group=group,
-                batch_id=batch_id,
-                proposed_client_id=item.get("proposed_client_id"),
-                proposed_batch_code=item.get("proposed_batch_code"),
-                reason=reason,
-            ))
-
-        BatchActionRequest.objects.bulk_create(request_objects)
-
-        logger.info(f"submit_group | group_id={group.id} | items={len(request_objects)} | by={manager}")
-
-        # ⚠ still deferred — see earlier note
-        # NotificationService.notify_department('finance', f"New reassignment request group #{group.id} pending review.")
-
-        return group
-
-
-    @staticmethod
-    def reject_group(group_id, reviewer, reason):
-        if not reason or not reason.strip():
-            raise ValueError("A rejection reason is required.")
-
-        with transaction.atomic():
-            group = BatchActionRequestGroup.objects.select_for_update().get(id=group_id)
-            if group.status != BatchActionRequestGroup.Status.PENDING:
-                raise ValueError("This request has already been reviewed.")
-
-            group.status = BatchActionRequestGroup.Status.REJECTED
-            group.rejection_reason = reason.strip()
-            group.reviewed_by = reviewer
-            group.reviewed_at = timezone.now()
-            group.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at'])
-
-            logger.info(f"reject_group | group_id={group.id} | by={reviewer}")
-            return group
-
-    @staticmethod
-    @transaction.atomic
-    def approve_group(group_id, reviewer):
-        group = BatchActionRequestGroup.objects.select_for_update().get(id=group_id)
-        if group.status != BatchActionRequestGroup.Status.PENDING:
-            raise ValueError("This request has already been reviewed.")
-
-        items = list(group.items.select_related('batch').all())
-        if not items:
-            raise ValueError("This group has no items to apply.")
-
-        for item in items:
-            BatchService.reassign_batch(item, reviewer)  # renamed, see below
-
-        group.status = BatchActionRequestGroup.Status.APPROVED
-        group.reviewed_by = reviewer
-        group.reviewed_at = timezone.now()
-        group.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
-        return group
-
-
-    @staticmethod
-    def get_pending_groups():
-        logger.info("get_pending_groups | fetching Finance review queue")
-        return BatchActionRequestGroup.objects.filter(
-            status=BatchActionRequestGroup.Status.PENDING
-        ).select_related('submitted_by').prefetch_related('items').order_by('created_at')
-
-    @staticmethod
-    def submit_reassignment_request(manager, batch_id, client_id, batch_code, reason):
-        return BatchActionService.submit_group(
-            manager=manager,
-            items=[{
-                "batch_id": batch_id,
-                "proposed_client_id": client_id,
-                "proposed_batch_code": batch_code,
-                "reason": reason,
-            }],
-         )
+            logger.warning(f"correct_batch_code | duplicate | batch_id={batch_id} | new_code={new_code}")
+            raise CorrectionConflict(f"Batch code '{new_code}' already exists.")
 
 
 class RentalConflict(Exception):
@@ -573,9 +383,8 @@ class DeviceNotFound(Exception):
 
 
 class DeviceRentalService:
-    # ------------------------------------------------------------------
+
     # Ownership
-    # ------------------------------------------------------------------
     @staticmethod
     def is_company_owned(device, company=None):
         """
@@ -589,9 +398,7 @@ class DeviceRentalService:
             company = CompanyService.get_company_client()
         return device.batch.client_id == company.pk
 
-    # ------------------------------------------------------------------
     # Assigning rentals
-    # ------------------------------------------------------------------
     @staticmethod
     def _assert_rentable(device, company, rental_client=None):
         """One rule set, used at scan time (check_rentable) and at submit time (create_rentals)."""
@@ -658,9 +465,7 @@ class DeviceRentalService:
                 )
         return created
 
-    # ------------------------------------------------------------------
     # Looking up and ending rentals
-    # ------------------------------------------------------------------
     @staticmethod
     def get_active_rental(serial_number):
         return (
@@ -783,18 +588,60 @@ class CompanyAlreadySet(Exception):
     """The company was already chosen and can't be changed."""
 
 
-"""
-create_existing_client_new_version (Case 2)
+class CorrectionConflict(Exception):
+    """A correction was refused because of a rule (the view turns this into HTTP 409)."""
 
-Looks up client and model by ID with explicit DoesNotExist checks — IDs come from the frontend dropdowns so they should always exist, but we guard anyway and raise a clean ValueError rather than letting Django throw a 500
-Checks ModelVersion uniqueness before creating — same guard already established in create_bulk_links
-Checks batch_code uniqueness — same pattern
-Both creates (ModelVersion → Batch) happen inside transaction.atomic, so a batch failure rolls back the version too
 
-create_existing_client_new_model (Case 3)
+class BatchCodeService:
+    """Looking up and correcting a batch's code. Independent of the reassignment feature."""
 
-Only looks up client by ID — the model doesn't exist yet
-DeviceModel name is intentionally not unique-checked, matching the comment already in create_device_model — same model name can legitimately exist across different clients
-Batch code uniqueness still checked
-Three creates (DeviceModel → ModelVersion → Batch) all atomic
-"""
+    @staticmethod
+    def _is_in_use(batch):
+        """
+        True once a device or a scan exists under the batch. A serial number carries its batch
+        code, so a code that real serial numbers already use was not a typo.
+        """
+        return (
+            Device.objects.filter(batch=batch).exists()
+            or DeviceStaging.objects.filter(batch_code=batch.batch_code).exists()
+        )
+
+    @staticmethod
+    def find_batch(batch_code):
+        """Look a batch up by its code, for the correction screen. Raises Batch.DoesNotExist."""
+        batch = Batch.objects.select_related('client', 'model_version').get(batch_code=batch_code)
+        return {
+            "id": batch.id,
+            "batch_code": batch.batch_code,
+            "client_name": batch.client.client_name,
+            "model": batch.model_version.model,
+            "version": batch.model_version.version,
+            "correctable": not BatchCodeService._is_in_use(batch),
+        }
+
+    @staticmethod
+    def correct_batch_code(batch_id, new_code, user, reason=""):
+        """Fix a mistyped batch code, only while nothing has been scanned or registered under it."""
+        try:
+            with transaction.atomic():
+                batch = Batch.objects.select_for_update().get(id=batch_id)
+                old_code = batch.batch_code
+
+                if new_code == old_code:
+                    raise CorrectionConflict("The new batch code is the same as the current one.")
+
+                if BatchCodeService._is_in_use(batch):
+                    raise CorrectionConflict(
+                        "Devices have already been scanned or registered under this batch code, so it can't be corrected."
+                    )
+
+                batch.batch_code = new_code
+                batch.correction_count += 1
+                batch.corrected_at = timezone.now()
+                batch.save(update_fields=['batch_code', 'correction_count', 'corrected_at'])
+
+                logger.info(f"correct_batch_code | batch_id={batch_id} | {old_code} -> {new_code} | by={user} | reason={reason}")
+                return batch
+        except IntegrityError:
+            logger.warning(f"correct_batch_code | duplicate | batch_id={batch_id} | new_code={new_code}")
+            raise CorrectionConflict(f"Batch code '{new_code}' already exists.")

@@ -2,11 +2,11 @@ from django.urls import path
 from .views import (ScanDeviceView, ClientListView, 
 ModelListView, ModelVersionListView, ScanDeviceView, 
 ConfirmDeviceView, ConfirmBulkDevicesView, BulkClientsView, 
-BulkClientsLinkingView, ValidateSelectionView, NewVersionView, NewModelView,
-ClientListView,
-ClientCorrectionView, DeviceModelCorrectionView, DeviceModelVersionCorrectionView,
-BatchReassignmentRequestView, BatchLookupView, DeviceRentalView, EndRentalView, ActiveRentalView,
-CompanyView,EndRentalsView, RentableCheckView, ClientsAwaitingLinkingView           
+BulkClientsLinkingView, ValidateSelectionView,
+ClientListView,ClientCorrectionView, DeviceModelCorrectionView, DeviceModelVersionCorrectionView,
+DeviceRentalView, EndRentalView, ActiveRentalView,
+CompanyView,EndRentalsView, RentableCheckView, ClientsAwaitingLinkingView, ExistingClientBatchView,
+BatchCodeLookupView, BatchCodeCorrectionView
 )
 
 urlpatterns = [
@@ -19,8 +19,9 @@ urlpatterns = [
     # path("versions/", DeviceModelVersionListView.as_view(), name="versions-list"),
 
     path("clients/existing/validate/", ValidateSelectionView.as_view(), name="clients-existing-validate"),
-    path("clients/existing/new-version/", NewVersionView.as_view(), name="clients-existing-new-version"),
-    path("clients/existing/new-model/", NewModelView.as_view(), name="clients-existing-new-model"),
+    path("clients/existing/batch/", ExistingClientBatchView.as_view(), name="clients-existing-batch"),
+    # path("clients/existing/new-version/", NewVersionView.as_view(), name="clients-existing-new-version"),
+    # path("clients/existing/new-model/", NewModelView.as_view(), name="clients-existing-new-model"),
 
     path("devices/", ScanDeviceView.as_view(), name="devices"),
     path("clients/list/", ClientListView.as_view(), name="clients-list"),
@@ -31,11 +32,12 @@ urlpatterns = [
     path("devices/confirm/", ConfirmDeviceView.as_view(), name="devices-confirm"),
     path("devices/confirm-bulk/", ConfirmBulkDevicesView.as_view(), name="devices-confirm-bulk"),
 
-    path("batches/<int:batch_id>/reassign-request/", BatchReassignmentRequestView.as_view()),    path("clients/<int:client_id>/correct/", ClientCorrectionView.as_view()),
-    path("models/<int:model_id>/correct/", DeviceModelCorrectionView.as_view()),
-    path("model-versions/<int:version_id>/correct/", DeviceModelVersionCorrectionView.as_view()),
-    path("batches/list/", BatchLookupView.as_view()),
-
+    path("models/correct/", DeviceModelCorrectionView.as_view(), name="model-correction"),
+    path("clients/<int:client_id>/correct/", ClientCorrectionView.as_view(), name="client-correction"),
+    path("versions/<int:version_id>/correct/", DeviceModelVersionCorrectionView.as_view(), name="version-correction"),
+    path("batch-codes/lookup/", BatchCodeLookupView.as_view(), name="batch-code-lookup"),
+    path("batch-codes/<int:batch_id>/correct/", BatchCodeCorrectionView.as_view(), name="batch-code-correction"),
+    
    # POST  - Warehouse assigns company-owned devices to a client (bulk)
     path("devices/rentals/", DeviceRentalView.as_view(), name="device-rental-create"),
     # GET   - ?serial_number=...  scan on Assign Rental -> can this device be rented?

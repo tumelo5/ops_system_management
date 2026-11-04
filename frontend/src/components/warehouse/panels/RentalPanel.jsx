@@ -18,7 +18,7 @@ export default function RentalPanel() {
     validate: async (sn) => {
       const d = await checkRentable(sn);
       return {
-        meta: [d.model_name, d.version_name].filter(Boolean).join(" · "),
+        meta: [d.model, d.version].filter(Boolean).join(" · "),
         data: { serial_number: d.serial_number || sn },
       };
     },

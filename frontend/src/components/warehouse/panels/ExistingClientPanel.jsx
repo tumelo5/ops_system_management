@@ -1,35 +1,36 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   getExistingClients,
   getExistingModels,
   getVersionsByModel,
   validateExistingSelection,
-  submitNewVersion,
-  submitNewModel,
+  submitExistingClientBatch,
 } from "../../../services/ClientApi";
 import Notification, { useNotification } from "../shared/Notifications";
 import ScanCard from "../shared/ScanCard";
 
+// Same normalisation as the serializers (strip + lowercase), so the live checks
+// agree with what the server will decide.
+const normalise = (s) => (s ?? "").trim().toLowerCase();
+
 export default function ExistingClientPanel({ active }) {
   // Dropdown data (fetched from the server; never emptied by a reset)
   const [clientOptions, setClientOptions] = useState([]);
-  const [modelOptions, setModelOptions] = useState([]);
-  const [versionOptions, setVersionOptions] = useState([]);
+  const [modelOptions, setModelOptions] = useState([]); // [{ model }]
+  // Versions of the model currently typed, tagged with the model they belong to
+  const [loadedVersions, setLoadedVersions] = useState({ model: "", items: [] }); // items: [{ id, version }]
 
-  // Selection
+  // Selection: the model and version are picked from the lists or typed
   const [client, setClient] = useState("");
-  const [modelMode, setModelMode] = useState("existing");
-  const [model, setModel] = useState("");
-  const [versionMode, setVersionMode] = useState("existing");
+  const [modelName, setModelName] = useState("");
   const [version, setVersion] = useState("");
-  const [newModelName, setNewModelName] = useState("");
-  const [newVersion, setNewVersion] = useState("");
   const [batchCode, setBatchCode] = useState("");
 
   // Progress
   const [validatedBatchCode, setValidatedBatchCode] = useState(""); // batch the scan will use
   const [batchReady, setBatchReady] = useState(false); // a batch exists for this selection -> scan unlocked
-  const [selectionConfirmed, setSelectionConfirmed] = useState(false); // reveals the Linking card (cases 2 & 3)
+  // Reveals the Linking card: the product is new, or the client has no batch for it yet
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
 
   const [note, notify, clearNote] = useNotification();
 
@@ -49,25 +50,62 @@ export default function ExistingClientPanel({ active }) {
     if (active) loadOptions();
   }, [active, loadOptions]);
 
+  // ---- What the typed model and version mean ----
+  const modelNames = useMemo(
+    () => new Set(modelOptions.map((m) => normalise(m.model))),
+    [modelOptions]
+  );
+  const typedModel = normalise(modelName);
+  const typedVersion = normalise(version);
+
+  const modelExists = !!typedModel && modelNames.has(typedModel);
+  const modelIsNew = !!typedModel && !modelExists;
+  const modelKey = modelExists ? typedModel : "";
+
+  // Only trust loaded versions that belong to the model currently typed
+  const versionsLoading = !!modelKey && loadedVersions.model !== modelKey;
+  const versionOptions = loadedVersions.model === modelKey ? loadedVersions.items : [];
+
+  // The model/version row, when both already exist. Its id is what the server validates.
+  const existingProduct =
+    modelExists && typedVersion
+      ? versionOptions.find((v) => normalise(v.version) === typedVersion)
+      : undefined;
+  const versionIsNew = modelExists && !!typedVersion && !versionsLoading && !existingProduct;
+
+  // Load the existing versions whenever the typed model is one that exists
+  useEffect(() => {
+    if (!modelKey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getVersionsByModel(modelKey);
+        if (!cancelled) setLoadedVersions({ model: modelKey, items: data });
+      } catch (error) {
+        if (!cancelled) notify("error", "Failed to fetch versions.");
+        console.error("Failed to fetch versions:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modelKey, notify]);
+
   // If the selection changes after a batch was confirmed, the old confirmation no longer applies
   useEffect(() => {
     setBatchReady(false);
     setValidatedBatchCode("");
     setSelectionConfirmed(false);
-  }, [client, modelMode, model, versionMode, version, newModelName, newVersion]);
+  }, [client, modelName, version]);
 
   // Clears the selection only. Dropdown data is kept, then refreshed.
   const resetSelection = () => {
     setClient("");
-    setModelMode("existing");
-    setModel("");
-    setVersionMode("existing");
+    setModelName("");
     setVersion("");
-    setNewModelName("");
-    setNewVersion("");
     setBatchCode("");
     setValidatedBatchCode("");
-    setVersionOptions([]);
+    setLoadedVersions({ model: "", items: [] });
     setBatchReady(false);
     setSelectionConfirmed(false);
     clearNote();
@@ -79,84 +117,78 @@ export default function ExistingClientPanel({ active }) {
     loadOptions();
   };
 
-  const handleModelChange = async (modelId) => {
-    setModel(modelId);
-    setVersion("");
-    setVersionOptions([]);
-    setSelectionConfirmed(false);
-    if (!modelId) return;
-    try {
-      setVersionOptions(await getVersionsByModel(modelId));
-    } catch (error) {
-      notify("error", "Failed to fetch versions.");
-      console.error("Failed to fetch versions:", error);
-    }
-  };
-
-  // Case 1 — existing client + model + version: validate that a batch exists, then unlock scan
-  const handleValidateSelection = async () => {
+  // Confirm the selection.
+  // New model or version: no batch can exist yet, so open the Linking card.
+  // Existing model and version: ask the server whether this client already has a batch for it.
+  const handleConfirmSelection = async () => {
     clearNote();
+    if (!existingProduct) {
+      setSelectionConfirmed(true);
+      return;
+    }
     try {
-      const response = await validateExistingSelection({ client, model, version });
-      setValidatedBatchCode(response.batch_code);
-      setBatchReady(true);
-      notify("success", response.message);
+      const response = await validateExistingSelection({ client, version: existingProduct.id });
+      if (response.batch_exists) {
+        setValidatedBatchCode(response.batch_code);
+        setBatchReady(true);
+        notify("success", response.message);
+      } else {
+        setSelectionConfirmed(true);
+      }
     } catch (error) {
       notify("error", error.response?.data?.error || "Failed to validate selection.");
       console.error("Validate selection failed:", error);
     }
   };
 
-  // Cases 2 & 3 — new version (existing model) or new model + version, plus a new batch code
+  // Linking: a new batch code for this client and product. The server reuses the model and
+  // version if they exist and creates them if they do not.
   const handleLinkingSubmit = async (e) => {
     e.preventDefault();
     clearNote();
     try {
-      const response =
-        modelMode === "new"
-          ? await submitNewModel({
-              client,
-              model_name: newModelName,
-              version: newVersion,
-              batch_code: batchCode,
-            })
-          : await submitNewVersion({ client, model, version: newVersion, batch_code: batchCode });
+      const response = await submitExistingClientBatch({
+        client,
+        model: modelName,
+        version,
+        batch_code: batchCode,
+      });
 
       setValidatedBatchCode(batchCode);
       setBatchCode("");
       setBatchReady(true);
       notify("success", response.message || "Batch code created successfully.");
-      loadOptions(); // the new model (if any) is now in the list
+      loadOptions(); // a new model (if any) is now in the list
     } catch (error) {
       notify("error", error.response?.data?.error || error.message || "Failed to create batch code.");
       console.error("Existing linking failed:", error);
     }
   };
 
-  // Case 1: all three existing
-  const isCase1 =
-    client && modelMode === "existing" && model && versionMode === "existing" && version;
-
-  // Cases 2 & 3: confirm enabled once the new fields are filled
-  const canConfirmSelection =
-    client &&
-    ((modelMode === "existing" && model && versionMode === "new" && newVersion) ||
-      (modelMode === "new" && newModelName && newVersion));
+  const canConfirm = !!client && !!typedModel && !!typedVersion && !versionsLoading;
+  const showHints = !selectionConfirmed && !batchReady;
 
   return (
     <div style={active ? undefined : { display: "none" }}>
       <section className="bulk-workflow__section">
         <div className="bulk-workflow__card">
           <h2 className="bulk-workflow__card-title">Existing Client</h2>
+
+          {/* Suggestions: every existing model name, and the versions of the model typed */}
+          <datalist id="existing-model-names">
+            {modelOptions.map((m) => (
+              <option key={m.model} value={m.model} />
+            ))}
+          </datalist>
+          <datalist id="existing-version-names">
+            {versionOptions.map((v) => (
+              <option key={v.id} value={v.version} />
+            ))}
+          </datalist>
+
           <div className="bulk-workflow__fields">
             <div className="bulk-workflow__field">
-              <select
-                value={client}
-                onChange={(e) => {
-                  setClient(e.target.value);
-                  setSelectionConfirmed(false);
-                }}
-              >
+              <select value={client} onChange={(e) => setClient(e.target.value)}>
                 <option value="">Select Client</option>
                 {clientOptions.map((c) => (
                   <option key={c.id} value={c.id}>{c.client_name}</option>
@@ -165,119 +197,53 @@ export default function ExistingClientPanel({ active }) {
             </div>
 
             {client && (
-              <div className="bulk-workflow__field">
-                <select
-                  value={modelMode}
-                  onChange={(e) => {
-                    setModelMode(e.target.value);
-                    setModel("");
-                    setNewModelName("");
-                    setVersionOptions([]);
-                    setVersion("");
-                    setNewVersion("");
-                    setSelectionConfirmed(false);
-                  }}
-                >
-                  <option value="existing">Existing Model</option>
-                  <option value="new">New Model</option>
-                </select>
-              </div>
+              <>
+                <div className="bulk-workflow__field">
+                  <input
+                    placeholder="Model (pick or type)"
+                    list="existing-model-names"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                  />
+                </div>
+                <div className="bulk-workflow__field">
+                  <input
+                    placeholder="Version (pick or type)"
+                    list="existing-version-names"
+                    value={version}
+                    onChange={(e) => setVersion(e.target.value)}
+                  />
+                </div>
+              </>
             )}
           </div>
 
-          {client && modelMode === "existing" && (
-            <div className="bulk-workflow__fields" style={{ marginTop: "0.5rem" }}>
-              <div className="bulk-workflow__field">
-                <select value={model} onChange={(e) => handleModelChange(e.target.value)}>
-                  <option value="">Select Model</option>
-                  {modelOptions.map((m) => (
-                    <option key={m.id} value={m.id}>{m.model_name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {model && (
-                <div className="bulk-workflow__field">
-                  <select
-                    value={versionMode}
-                    onChange={(e) => {
-                      setVersionMode(e.target.value);
-                      setVersion("");
-                      setNewVersion("");
-                      setSelectionConfirmed(false);
-                    }}
-                  >
-                    <option value="existing">Existing Version</option>
-                    <option value="new">New Version</option>
-                  </select>
-                </div>
-              )}
-
-              {model && versionMode === "existing" && (
-                <div className="bulk-workflow__field">
-                  <select
-                    value={version}
-                    onChange={(e) => {
-                      setVersion(e.target.value);
-                      setSelectionConfirmed(false);
-                    }}
-                  >
-                    <option value="">Select Version</option>
-                    {versionOptions.map((v) => (
-                      <option key={v.id} value={v.id}>{v.version}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {model && versionMode === "new" && (
-                <div className="bulk-workflow__field">
-                  <input
-                    placeholder="New Version"
-                    value={newVersion}
-                    onChange={(e) => {
-                      setNewVersion(e.target.value);
-                      setSelectionConfirmed(false);
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+          {/* What the selection will do */}
+          {client && showHints && modelIsNew && typedVersion && (
+            <p style={{ fontSize: "0.75rem", color: "#b45309", margin: "0.5rem 0 0" }}>
+              "{modelName.trim()}" is a new model and will be created with this version. Check the spelling.
+            </p>
+          )}
+          {client && showHints && versionIsNew && (
+            <p style={{ fontSize: "0.75rem", color: "#2563eb", margin: "0.5rem 0 0" }}>
+              This is a new version of an existing model.
+            </p>
+          )}
+          {client && showHints && existingProduct && (
+            <p style={{ fontSize: "0.75rem", color: "#2563eb", margin: "0.5rem 0 0" }}>
+              This model and version already exist.
+            </p>
           )}
 
-          {client && modelMode === "new" && (
-            <div className="bulk-workflow__fields" style={{ marginTop: "0.5rem" }}>
-              <div className="bulk-workflow__field">
-                <input
-                  placeholder="New Model Name"
-                  value={newModelName}
-                  onChange={(e) => {
-                    setNewModelName(e.target.value);
-                    setSelectionConfirmed(false);
-                  }}
-                />
-              </div>
-              <div className="bulk-workflow__field">
-                <input
-                  placeholder="New Version"
-                  value={newVersion}
-                  onChange={(e) => {
-                    setNewVersion(e.target.value);
-                    setSelectionConfirmed(false);
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Case 1 — validate selection, unlock scan */}
-          {isCase1 && !batchReady && (
+          {/* Confirm: unlock scan, or open the Linking card */}
+          {client && !batchReady && !selectionConfirmed && (
             <div style={{ marginTop: "0.5rem" }}>
               <div className="bulk-workflow__actions">
                 <button
                   type="button"
                   className="bulk-workflow__btn bulk-workflow__btn--primary"
-                  onClick={handleValidateSelection}
+                  onClick={handleConfirmSelection}
+                  disabled={!canConfirm}
                 >
                   Confirm Selection
                 </button>
@@ -303,22 +269,9 @@ export default function ExistingClientPanel({ active }) {
               ✓ {validatedBatchCode} — ready to scan
             </div>
           )}
-
-          {/* Cases 2 & 3 — confirm to reveal the linking card */}
-          {canConfirmSelection && !selectionConfirmed && !batchReady && (
-            <div className="bulk-workflow__actions" style={{ marginTop: "0.5rem" }}>
-              <button
-                type="button"
-                className="bulk-workflow__btn bulk-workflow__btn--primary"
-                onClick={() => setSelectionConfirmed(true)}
-              >
-                Confirm Selection
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Cases 2 & 3 — linking card */}
+        {/* Linking card — a new product, or an existing one this client has no batch for yet */}
         {selectionConfirmed && (
           <form className="bulk-workflow__card" onSubmit={handleLinkingSubmit}>
             <h2 className="bulk-workflow__card-subtitle">Linking</h2>
