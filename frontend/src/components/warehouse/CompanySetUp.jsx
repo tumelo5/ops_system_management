@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getCompany, setCompany, getExistingClients } from "../../services/ClientApi";
+import { getCompany, setCompany } from "../../services/CompanyApi";
+import { getExistingClients } from "../../services/ClientApi";
 import "../../styles/components/CompanySetUp.css";
 // Shows a one-time setup card until the company is chosen, then a quiet chip.
 // refreshKey: change it (e.g. when new clients are saved) to reload the client list.

@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
-import { getExistingClients, getCompany, checkRentable, submitRentals } from "../../../services/ClientApi";
+import { getExistingClients } from "../../../services/ClientApi";
+import { getCompany } from "../../../services/CompanyApi";
+import { checkRentable, submitRentals } from "../../../services/RentalApi";
 import ScanBox, { useScanBox, messageOf } from "../shared/ScanBox";
+import "../../../styles/components/RentalPanel.css";
 
 
 const MAX_DEVICES = 50; // matches max_length=50 in DeviceRentalView
@@ -71,13 +74,15 @@ export default function RentalPanel() {
   return (
     <section className="bulk-workflow__section">
       <div className="bulk-workflow__card">
-        <h2 className="bulk-workflow__card-title">Rental details</h2>
+        <h2 className="bulk-workflow__card-title">Assign devices</h2>
+
         {companyMissing && (
           <div className="bulk-workflow__notification bulk-workflow__notification--error" style={{ margin: "0 0 1rem" }}>
             The company isn't set up yet. Set it in Clients &amp; Batches first.
           </div>
         )}
-        <div className="bulk-workflow__fields">
+
+        <div className="bulk-workflow__fields" style={{ marginBottom: "1.25rem" }}>
           <div className="bulk-workflow__field">
             <span className="bulk-workflow__field-label">Rent to</span>
             <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
@@ -92,22 +97,19 @@ export default function RentalPanel() {
             <input type="datetime-local" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
           </div>
         </div>
-      </div>
 
-      <div className="bulk-workflow__card">
-        <h2 className="bulk-workflow__card-title">Scan devices</h2>
         <ScanBox box={box} max={MAX_DEVICES} />
 
         {notice && (
           <div
             className={`bulk-workflow__notification bulk-workflow__notification--${notice.type}`}
-            style={{ margin: "1rem 0 0" }}
+            style={{ margin: "1rem 0 0", width: "fit-content", maxWidth: "100%" }}
           >
             {notice.message}
           </div>
         )}
 
-        <div className="bulk-workflow__actions" style={{ justifyContent: "flex-end", marginTop: "1.25rem" }}>
+        <div className="bulk-workflow__actions" style={{ marginTop: "1.25rem" }}>
           <button type="button" className="bulk-workflow__btn bulk-workflow__btn--primary" onClick={handleAssign} disabled={!canAssign}>
             {submitting
               ? "Assigning…"

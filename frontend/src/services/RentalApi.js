@@ -1,47 +1,25 @@
-// Rental endpoints for the Warehouse module.
-//
-// ADAPT (2 lines): use the same axios instance ClientApi.js uses (the one that
-// attaches the JWT), and set BASE to wherever the warehouse urls are mounted.
-import api from "./api";
+import api from "./axios";
 
-const BASE = "/warehouse/rentals";
+// Scan-time check on Assign Rental: can this SN be rented right now?
+export const checkRentable = async (serialNumber) =>
+  (await api.get("/warehouse/devices/rentals/check/", {
+    params: { serial_number: serialNumber },
+  })).data;
 
-// Scan-time check: does the SN exist, what is its id, can it be assigned?
-export const checkAssignable = async (serialNumber) =>
-  (await api.get(`${BASE}/check/`, { params: { serial_number: serialNumber } })).data;
-
-// Active rental for an SN (404 = not currently on rent)
+// Scan on End Rental: active rental for an SN (404 = not on rent)
 export const getActiveRental = async (serialNumber) =>
-  (await api.get(`${BASE}/active/`, { params: { serial_number: serialNumber } })).data;
+  (await api.get("/warehouse/devices/rentals/active/", {
+    params: { serial_number: serialNumber },
+  })).data;
 
-// items: [{ device, rental_client, expected_return_date }]
-export const assignRentals = async (items) => (await api.post(`${BASE}/`, items)).data;
+// Assign company-owned devices to a client (bulk)
+export const submitRentals = async (payload) =>
+  (await api.post("/warehouse/devices/rentals/", payload)).data;
 
-// { rental_id, end_date: "YYYY-MM-DD" }
-export const endRental = async ({ rental_id, end_date }) =>
-  (await api.post(`${BASE}/end/`, { rental_id, end_date })).data;
+// End one rental: { rental_id, end_date }
+export const endRental = async (payload) =>
+  (await api.post("/warehouse/devices/rentals/end/", payload)).data;
 
-// Pulls the first readable message out of the shapes this API returns:
-// { error }, { detail }, a list of per-item error objects, or { field: [msgs] }.
-export function getErrorMessage(error, fallback) {
-  const pick = (v) => {
-    if (!v) return null;
-    if (typeof v === "string") return v;
-    if (Array.isArray(v)) {
-      for (const item of v) {
-        const m = pick(item);
-        if (m) return m;
-      }
-      return null;
-    }
-    if (typeof v === "object") {
-      if (v.error) return pick(v.error);
-      for (const key of Object.keys(v)) {
-        const m = pick(v[key]);
-        if (m) return m;
-      }
-    }
-    return null;
-  };
-  return pick(error?.response?.data) || fallback;
-}
+// End many rentals with one end date, all-or-nothing: { rental_ids, end_date }
+export const endRentals = async (payload) =>
+  (await api.post("/warehouse/devices/rentals/end/bulk/", payload)).data;

@@ -1,28 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { getExistingClients, correctClient } from '../../../services/ClientApi';
 import {
-  getExistingClients,
   getExistingModels,
   getVersionsByModel,
-} from '../../../services/ClientApi';
-import {
-  correctClient,
   correctModel,
   correctModelVersion,
-} from '../../../services/CorrectionApi';
+} from '../../../services/ModelApi';
+
 import Notification, { useNotification } from '../shared/Notifications';
 import BatchCodeCorrectionForm from './BatchCodeCorrectionForm';
 import '../../../styles/components/correction-panel.css';
-
-/**
- * CorrectionPanel
- *
- * Two kinds of typo correction:
- * - "Fix a new entry": edit a Client/Model/Version's value directly (same PK,
- *   nothing else changes). Always self-service — pre-link or post-link, it
- *   doesn't matter, since correcting a spelling never changes identity.
- * - "Fix a batch code": correct a mistyped batch code, only while no device has
- *   been scanned or registered under it (see BatchCodeCorrectionForm).
- */
 
 const TABS = {
   REFERENCE: 'reference',
@@ -35,57 +22,84 @@ export default function CorrectionPanel({ onBack }) {
 
   return (
     <section className="correction-panel">
-      {onBack && (
-        <button type="button" className="correction-panel__back" onClick={onBack}>
+
+      {/* {onBack && (
+        <button
+          type="button"
+          className="correction-panel__back"
+          onClick={onBack}
+        >
           ← Back to Client Workflow
         </button>
-      )}
+      )} */}
 
       <div className="bulk-workflow__card">
-        <h2 className="bulk-workflow__card-title">Correct an entry</h2>
+
+        <h2 className="bulk-workflow__card-title">
+          Correct an entry
+        </h2>
+
         <p className="correction-panel__subtitle">
-          Fix a typo in a client, model, version, or batch code.
+          Correct an existing record without recreating it.
         </p>
 
         <div className="correction-panel__tabs">
           <button
             type="button"
-            className={`correction-panel__tab ${activeTab === TABS.REFERENCE ? 'correction-panel__tab--active' : ''}`}
-            onClick={() => { setActiveTab(TABS.REFERENCE); clearBanner(); }}
+            className={`correction-panel__tab ${
+              activeTab === TABS.REFERENCE
+                ? 'correction-panel__tab--active'
+                : ''
+            }`}
+            onClick={() => {
+              setActiveTab(TABS.REFERENCE);
+              clearBanner();
+            }}
           >
-            Fix a new entry
+            Reference entry
           </button>
+
           <button
             type="button"
-            className={`correction-panel__tab ${activeTab === TABS.BATCH_CODE ? 'correction-panel__tab--active' : ''}`}
-            onClick={() => { setActiveTab(TABS.BATCH_CODE); clearBanner(); }}
+            className={`correction-panel__tab ${
+              activeTab === TABS.BATCH_CODE
+                ? 'correction-panel__tab--active'
+                : ''
+            }`}
+            onClick={() => {
+              setActiveTab(TABS.BATCH_CODE);
+              clearBanner();
+            }}
           >
-            Fix a batch code
+            Batch code
           </button>
         </div>
 
         <Notification state={banner} />
 
         {activeTab === TABS.REFERENCE && (
-          <ReferenceCorrectionForm notify={notify} clearBanner={clearBanner} />
+          <ReferenceCorrectionForm
+            notify={notify}
+            clearBanner={clearBanner}
+          />
         )}
+
         {activeTab === TABS.BATCH_CODE && (
-          <BatchCodeCorrectionForm notify={notify} clearBanner={clearBanner} />
+          <BatchCodeCorrectionForm
+            notify={notify}
+            clearBanner={clearBanner}
+          />
         )}
+
       </div>
     </section>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Fix a new entry (Client / Model / Version) — always direct, no gating
-//
-// Model and version are one table: a "model" is a model name shared by one or
-// more version rows. So:
-//   - Client:  picked by id, renamed on its own
-//   - Model:   picked by NAME, renamed on every version row of that model
-//   - Version: pick the model name first, then pick one version row by id
-// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------
+// Reference correction
+// ---------------------------------------------------------
 
 const RECORD_TYPES = [
   { value: 'client', label: 'Client' },
@@ -94,18 +108,26 @@ const RECORD_TYPES = [
 ];
 
 const HINTS = {
-  client: 'This updates the client name directly. Every batch linked to this client reflects the correction.',
-  model: 'This renames the model on all of its versions. Every batch linked to them reflects the correction.',
-  version: 'This updates the version directly. Every batch linked to it reflects the correction.',
+  client:
+    'The client name will be updated on the existing record. All batches linked to this client will reflect the correction.',
+
+  model:
+    'The model name will be updated across all its version records. Linked batches will reflect the corrected model name.',
+
+  version:
+    'The selected version will be updated. All batches linked to this version will reflect the correction.',
 };
 
 function ReferenceCorrectionForm({ notify, clearBanner }) {
   const [recordType, setRecordType] = useState('client');
-  const [clients, setClients] = useState([]); // [{ id, client_name }]
-  const [models, setModels] = useState([]); // [{ model }]  distinct model names
-  const [versions, setVersions] = useState([]); // [{ id, version }]  of the model chosen below
-  const [selectedModel, setSelectedModel] = useState(''); // model name, used on the Version tab
-  const [selected, setSelected] = useState(''); // client id, model name or version id, by tab
+
+  const [clients, setClients] = useState([]);
+  const [models, setModels] = useState([]);
+  const [versions, setVersions] = useState([]);
+
+  const [selectedModel, setSelectedModel] = useState('');
+  const [selected, setSelected] = useState('');
+
   const [newValue, setNewValue] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -120,32 +142,67 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
       setVersions([]);
       return;
     }
-    getVersionsByModel(modelName).then(setVersions).catch(() => {});
+
+    getVersionsByModel(modelName)
+      .then(setVersions)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     loadLists();
   }, [loadLists]);
 
-  // Changing the tab or the chosen model clears the selection and loads that model's versions
   useEffect(() => {
     setSelected('');
+    setNewValue('');
+    setReason('');
     setVersions([]);
-    if (recordType === 'version') loadVersions(selectedModel);
+
+    if (recordType === 'version') {
+      loadVersions(selectedModel);
+    }
   }, [recordType, selectedModel, loadVersions]);
 
-  // One shape for every tab: { value, label }. Model names are de-duplicated defensively.
-  const uniqueModels = [...new Map(models.map((m) => [m.model, m])).values()];
+  const uniqueModels = [
+    ...new Map(models.map((m) => [m.model, m])).values(),
+  ];
+
   const options =
     recordType === 'client'
-      ? clients.map((c) => ({ value: c.id, label: c.client_name }))
+      ? clients.map((c) => ({
+          value: c.id,
+          label: c.client_name,
+        }))
       : recordType === 'model'
-      ? uniqueModels.map((m) => ({ value: m.model, label: m.model }))
-      : versions.map((v) => ({ value: v.id, label: v.version }));
+      ? uniqueModels.map((m) => ({
+          value: m.model,
+          label: m.model,
+        }))
+      : versions.map((v) => ({
+          value: v.id,
+          label: v.version,
+        }));
+
+  const selectedOption = options.find(
+    (opt) => String(opt.value) === String(selected)
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selected || !newValue.trim() || !reason.trim()) return;
+
+    if (!selected || !newValue.trim() || !reason.trim()) {
+      return;
+    }
+
+    // Prevent a no-op correction.
+    if (
+      selectedOption &&
+      selectedOption.label.trim().toLowerCase() ===
+        newValue.trim().toLowerCase()
+    ) {
+      notify('error', 'The corrected value must differ from the current value.');
+      return;
+    }
 
     setSubmitting(true);
     clearBanner();
@@ -155,19 +212,29 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
         await correctClient(selected, newValue.trim(), reason.trim());
       } else if (recordType === 'model') {
         await correctModel(selected, newValue.trim(), reason.trim());
-        setSelectedModel(''); // the old name no longer exists
+        setSelectedModel('');
       } else {
         await correctModelVersion(selected, newValue.trim(), reason.trim());
       }
-      notify('success', 'Updated successfully.');
+
+      notify('success', 'Correction saved successfully.');
+
       setNewValue('');
       setSelected('');
       setReason('');
-      loadLists(); // every screen reads these lists, so refresh them
-      if (recordType === 'version') loadVersions(selectedModel);
+
+      loadLists();
+
+      if (recordType === 'version') {
+        loadVersions(selectedModel);
+      }
+
     } catch (err) {
-      const detail = err?.response?.data?.error || 'Something went wrong.';
+      const detail =
+        err?.response?.data?.error || 'Something went wrong.';
+
       notify('error', detail);
+
     } finally {
       setSubmitting(false);
     }
@@ -182,72 +249,238 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="bulk-workflow__fields">
-        <div className="bulk-workflow__field">
-          <select value={recordType} onChange={(e) => setRecordType(e.target.value)}>
-            {RECORD_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
 
-      {recordType === 'version' && (
+      {/* STEP 1: Identify the record */}
+
+      <div className="correction-panel__section">
+
+        <h3 className="correction-panel__section-title">
+          1. Identify the entry
+        </h3>
+
+        <p className="correction-panel__section-description">
+          Select the type of record that needs correcting.
+        </p>
+
+        <label className="correction-panel__field-label">
+          Entry type
+        </label>
+
         <div className="bulk-workflow__fields">
           <div className="bulk-workflow__field">
-            <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
-              <option value="">Select a model</option>
-              {uniqueModels.map((m) => (
-                <option key={m.model} value={m.model}>{m.model}</option>
+            <select
+              value={recordType}
+              onChange={(e) => {
+                setRecordType(e.target.value);
+                setSelectedModel('');
+              }}
+            >
+              {RECORD_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
               ))}
             </select>
           </div>
         </div>
-      )}
 
-      <div className="bulk-workflow__fields">
-        <div className="bulk-workflow__field">
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            disabled={recordType === 'version' && !selectedModel}
-          >
-            <option value="">{typoPrompt}</option>
-            {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+        {recordType === 'version' && (
+          <>
+            <label className="correction-panel__field-label">
+              Model
+            </label>
+
+            <div className="bulk-workflow__fields">
+              <div className="bulk-workflow__field">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  <option value="">Select a model</option>
+
+                  {uniqueModels.map((m) => (
+                    <option key={m.model} value={m.model}>
+                      {m.model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+
+        <label className="correction-panel__field-label">
+          {recordType === 'client'
+            ? 'Existing client'
+            : recordType === 'model'
+            ? 'Existing model'
+            : 'Existing version'}
+        </label>
+
+        <div className="bulk-workflow__fields">
+          <div className="bulk-workflow__field">
+            <select
+              value={selected}
+              onChange={(e) => {
+                setSelected(e.target.value);
+                setNewValue('');
+              }}
+              disabled={recordType === 'version' && !selectedModel}
+            >
+              <option value="">{typoPrompt}</option>
+
+              {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="bulk-workflow__field">
-          <input
-            placeholder="Correct value"
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
-          />
-        </div>
+
+        {options.length === 0 && (
+          <p className="correction-panel__empty">
+            No records available for this selection.
+          </p>
+        )}
+
       </div>
 
-      <div className="bulk-workflow__fields">
-        <div className="bulk-workflow__field">
-          <input
-            placeholder="Reason for this correction"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
+
+      {/* STEP 2: Enter correction */}
+
+      <div className="correction-panel__section">
+
+        <h3 className="correction-panel__section-title">
+          2. Enter the correction
+        </h3>
+
+        <p className="correction-panel__section-description">
+          Provide the corrected value for the selected record.
+        </p>
+
+        <div className="correction-panel__comparison">
+
+          <div className="correction-panel__comparison-item">
+            <label
+              className="correction-panel__field-label"
+              htmlFor="correction-current-value"
+            >
+              Current value
+            </label>
+
+            <div className="bulk-workflow__field correction-panel__readonly">
+              <input
+                id="correction-current-value"
+                type="text"
+                value={selectedOption?.label || ''}
+                placeholder="Not selected"
+                readOnly
+                tabIndex={-1}
+              />
+            </div>
+          </div>
+
+          <div className="correction-panel__comparison-item">
+            <label
+              className="correction-panel__field-label"
+              htmlFor="correction-new-value"
+            >
+              Correct value
+            </label>
+
+            <div className="bulk-workflow__field">
+              <input
+                id="correction-new-value"
+                type="text"
+                placeholder="Enter corrected value"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                disabled={!selected}
+                required
+              />
+            </div>
+          </div>
+
         </div>
+
       </div>
+
+
+      {/* STEP 3: Reason
+
+      <div className="correction-panel__section">
+
+        <h3 className="correction-panel__section-title">
+          3. Record the reason
+        </h3>
+
+        <p className="correction-panel__section-description">
+          Explain why this record requires correction.
+        </p>
+
+        <div className="bulk-workflow__fields">
+          <div className="bulk-workflow__field">
+            <label
+              className="correction-panel__field-label"
+              htmlFor="correction-reason"
+            >
+              Reason for correction
+            </label>
+
+            <input
+              id="correction-reason"
+              type="text"
+              placeholder="e.g. Incorrect spelling during data entry"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+      </div> */}
+
+
+      {/* IMPACT */}
+
+      <div className="correction-panel__impact">
+
+        <span className="correction-panel__impact-icon">
+          ⓘ
+        </span>
+
+        <div>
+          <p className="correction-panel__impact-title">
+            Impact of correction
+          </p>
+
+          <p className="correction-panel__impact-text">
+            {HINTS[recordType]}
+          </p>
+        </div>
+
+      </div>
+
+
+      {/* ACTION */}
 
       <div className="bulk-workflow__actions">
         <button
           type="submit"
           className="bulk-workflow__btn bulk-workflow__btn--primary"
-          disabled={submitting || !selected || !newValue.trim() || !reason.trim()}
+          disabled={
+            submitting ||
+            !selected ||
+            !newValue.trim() ||
+            !reason.trim() ||
+            !selectedOption
+          }
         >
           {submitting ? 'Saving…' : 'Save correction'}
         </button>
       </div>
 
-      <p className="correction-panel__hint">{HINTS[recordType]}</p>
     </form>
   );
 }

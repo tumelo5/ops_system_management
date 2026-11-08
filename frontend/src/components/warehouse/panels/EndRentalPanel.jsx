@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getActiveRental, endRentals } from "../../../services/ClientApi";
+import { getActiveRental, endRentals } from "../../../services/RentalApi";
 import ScanBox, { useScanBox, messageOf } from "../shared/ScanBox";
 import "../../../styles/components/EndRentalPanel.css";
 
@@ -63,11 +63,8 @@ export default function EndRentalPanel() {
       <div className="bulk-workflow__card">
         <h2 className="bulk-workflow__card-title">Scan returned devices</h2>
         <ScanBox box={box} max={MAX_DEVICES} />
-      </div>
 
-      <div className="bulk-workflow__card">
-        <h2 className="bulk-workflow__card-title">End date</h2>
-        <div className="bulk-workflow__fields">
+        <div className="bulk-workflow__fields end-rental__date">
           <div className="bulk-workflow__field">
             <span className="bulk-workflow__field-label">Rental end date (all devices)</span>
             <input
@@ -86,13 +83,13 @@ export default function EndRentalPanel() {
         {notice && (
           <div
             className={`bulk-workflow__notification bulk-workflow__notification--${notice.type}`}
-            style={{ margin: "1rem 0 0" }}
+            style={{ margin: "1rem 0 0", width: "fit-content", maxWidth: "100%" }}
           >
             {notice.message}
           </div>
         )}
 
-        <div className="bulk-workflow__actions" style={{ justifyContent: "flex-end", marginTop: "1.25rem" }}>
+        <div className="bulk-workflow__actions" style={{ marginTop: "1.25rem" }}>
           <button type="button" className="bulk-workflow__btn bulk-workflow__btn--primary" onClick={handleEnd} disabled={!canEnd}>
             {submitting ? "Ending…" : `End ${n || ""} rental${n === 1 ? "" : "s"}`}
           </button>
