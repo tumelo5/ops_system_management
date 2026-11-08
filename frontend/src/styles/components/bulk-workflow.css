@@ -1,18 +1,26 @@
+
 /*
   bulk-workflow.css
-  The Warehouse page shell and the shared form primitives (card, fields, buttons,
-  entry rows, device table) that several panels reuse.
+  The Warehouse page shell and shared form primitives.
   Component-specific styles live in their own files:
     mode-picker.css, company-setup.css, rental-panel.css,
     end-rental-panel.css, scan-box.css, correction-panel.css
 */
 
+/* Full-width Warehouse page background */
+.warehouse-page {
+  min-height: 100vh;
+  width: 100%;
+  background: var(--coor-bg-pagel);
+}
+
+/* Centred content container */
 .bulk-workflow {
   min-height: 100vh;
-  max-width: 960px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem 1.5rem 3rem;
-  background: var(--color-bg-page);
   box-sizing: border-box;
   font-family: var(--font-family);
   color: var(--color-text);
@@ -33,7 +41,7 @@
   margin-bottom: 0;
 }
 
-/* Subtitle + tagline: collapse smoothly once a card is selected */
+/* Subtitle + tagline: collapse smoothly once a card is selected. */
 .bulk-workflow__intro {
   display: grid;
   grid-template-rows: 1fr;
@@ -65,7 +73,7 @@
   color: var(--color-text-muted);
 }
 
-/* Tagline — sits under the title and subtitle */
+/* Tagline — sits under the title and subtitle. */
 .bulk-workflow__tagline {
   margin: 1.75rem auto 0;
   max-width: 560px;
@@ -125,49 +133,72 @@
 .bulk-workflow__fields {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.75rem;
+  gap: 0.75rem 1.25rem;
 }
 
 .bulk-workflow__field {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
 }
 
-.bulk-workflow__field input,
-.bulk-workflow__field select {
+/* Shared underline-style inputs and selects.
+   Bulk Clients uses the same permanent underline treatment as Correction Panel. */
+.bulk-clients .bulk-workflow__field input,
+.bulk-clients .bulk-workflow__field select,
+.bulk-clients .bulk-workflow__field textarea {
   width: 100%;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.875rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-card);
-  color: var(--color-text);
+  min-height: 43px;
   box-sizing: border-box;
-  transition: border-color var(--transition-fast);
-}
-
-.bulk-workflow__field input::placeholder {
-  color: var(--color-text-placeholder);
-}
-
-.bulk-workflow__field input:hover:not(:disabled),
-.bulk-workflow__field select:hover:not(:disabled) {
-  border-color: var(--color-border-hover);
-}
-
-.bulk-workflow__field input:focus,
-.bulk-workflow__field select:focus {
+  padding: 0.65rem 0.15rem;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.87rem;
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus);
+  box-shadow: none !important;
+  transition:
+    border-color 240ms ease,
+    border-width 240ms ease,
+    color 240ms ease;
 }
 
-.bulk-workflow__field input:disabled,
-.bulk-workflow__field select:disabled {
-  background: var(--color-bg-disabled);
-  color: var(--color-text-placeholder);
+.bulk-clients .bulk-workflow__field input::placeholder,
+.bulk-clients .bulk-workflow__field textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.bulk-clients .bulk-workflow__field input:hover:not(:disabled),
+.bulk-clients .bulk-workflow__field select:hover:not(:disabled),
+.bulk-clients .bulk-workflow__field textarea:hover:not(:disabled) {
+  border-bottom-color: #94a3b8 !important;
+}
+
+.bulk-clients .bulk-workflow__field input:focus,
+.bulk-clients .bulk-workflow__field select:focus,
+.bulk-clients .bulk-workflow__field textarea:focus {
+  background: transparent !important;
+  border-bottom: 2px solid #6366f1 !important;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.bulk-clients .bulk-workflow__field input:disabled,
+.bulk-clients .bulk-workflow__field select:disabled,
+.bulk-clients .bulk-workflow__field textarea:disabled {
+  background: transparent !important;
+  border-bottom: 1px dashed #94a3b8 !important;
+  color: #94a3b8;
   cursor: not-allowed;
+}
+
+.bulk-clients .bulk-workflow__field select {
+  cursor: pointer;
 }
 
 .bulk-workflow__field-label {
@@ -178,7 +209,7 @@
   color: var(--color-text-muted);
 }
 
-/* Divider between fields in a row, base "Add Clients" card only */
+/* Divider between fields in a row, base Add Clients card only. */
 .bulk-workflow__fields--divided {
   display: flex;
   gap: 0.75rem;
@@ -221,7 +252,7 @@
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--transition-fast), opacity var(--transition-fast);
+  transition: background-color var(--transition-fast), opacity var(--transition-fast);
 }
 
 .bulk-workflow__btn--primary {
@@ -250,10 +281,56 @@
   border-color: var(--color-border-hover);
 }
 
+/* Shared internal sections for workflows that belong in one outer card. */
+.bulk-workflow__workflow-stage {
+  min-width: 0;
+}
+
+.bulk-workflow__subsection {
+  margin-top: 1.5rem;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.bulk-workflow__subsection .bulk-workflow__actions {
+  margin-top: 1rem;
+}
+
+.bulk-workflow__stage-actions {
+  margin-top: 0.75rem;
+}
+
+.bulk-workflow__hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.bulk-workflow__hint--warning {
+  color: #b45309;
+}
+
+.bulk-workflow__batch-banner {
+  display: inline-block;
+  margin-top: 0.85rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 .bulk-workflow__scan {
   margin-top: 1.75rem;
   padding-top: 1.75rem;
   border-top: 1px solid var(--color-border);
+}
+
+.bulk-workflow__scan--embedded {
+  margin-top: 1.5rem;
+  padding-top: 1.35rem;
+  border-top-color: var(--color-border-subtle);
 }
 
 .bulk-workflow__scan-form {
@@ -268,12 +345,19 @@
   min-width: 220px;
 }
 
+.bulk-workflow__scan-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 .bulk-workflow__device-details {
   margin-top: 1rem;
   padding: 1.25rem;
   background: var(--color-success-bg);
   border: 1px solid var(--color-success-border);
   border-radius: var(--radius-lg);
+  overflow-x: auto;
 }
 
 .bulk-workflow__device-details h3 {
@@ -313,7 +397,7 @@
 }
 
 .bulk-workflow__notification--error {
-  margin: 1rem;
+  margin: 1rem 0;
   background: var(--color-error-bg, #fef2f2);
   color: var(--color-error-text, #b91c1c);
   border: 1px solid var(--color-error-border, #fca5a5);
@@ -348,6 +432,7 @@
   font-size: 0.875rem;
   text-align: left;
   border-bottom: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
 }
 
 .bulk-workflow__device-table th {
@@ -362,7 +447,7 @@
 
 .bulk-workflow__device-table tbody tr {
   background: var(--color-bg-card);
-  transition: background var(--transition-fast);
+  transition: background-color var(--transition-fast);
 }
 
 .bulk-workflow__device-table tbody tr:hover {
@@ -373,6 +458,312 @@
   border-bottom: none;
 }
 
+.bulk-workflow__device-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
 .bulk-workflow__scan-input {
-  max-width: 320px;
+  max-width: 420px;
+}
+
+/* =========================================================
+   BULK CLIENTS PANEL
+   ========================================================= */
+
+.bulk-clients__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.bulk-clients__entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.35rem 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.bulk-clients__row-number {
+  flex: 0 0 1.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.bulk-clients__client-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.bulk-clients__client-field input {
+  max-width: 420px;
+}
+
+.bulk-clients__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.bulk-clients__link-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.bulk-clients__field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.bulk-clients__field-hint--warning {
+  color: #b45309;
+}
+
+.bulk-clients__field-hint--info {
+  color: #2563eb;
+}
+
+.bulk-clients__empty-state {
+  margin: 0.25rem 0 0;
+  padding: 0.85rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.bulk-clients__link-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}
+
+.bulk-clients .bulk-workflow__card-title,
+.bulk-clients .bulk-workflow__card-subtitle {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.bulk-clients .bulk-workflow__btn-remove {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .bulk-workflow {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .bulk-workflow__card {
+    padding: 1.1rem;
+  }
+
+  .bulk-workflow__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .bulk-workflow__fields--divided,
+  .bulk-workflow__linking-fields {
+    flex-direction: column;
+  }
+
+  .bulk-workflow__fields--divided .bulk-workflow__field:not(:first-child),
+  .bulk-workflow__linking-fields > .bulk-workflow__fields:not(:first-child) {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .bulk-workflow__device-table th,
+  .bulk-workflow__device-table td {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .bulk-clients__entry {
+    padding: 0.7rem;
+    gap: 0.55rem;
+  }
+
+  .bulk-clients__link-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 0.85rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .bulk-clients__link-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .bulk-clients__actions {
+    align-items: stretch;
+  }
+
+  .bulk-clients__actions .bulk-workflow__btn {
+    padding-inline: 0.85rem;
+  }
+}
+
+/* =========================================================
+   EXISTING CLIENT PANEL
+   Underline fields matching the Correction Panel
+   ========================================================= */
+
+.existing-client .bulk-workflow__card-title,
+.existing-client .bulk-workflow__card-subtitle {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.existing-client .bulk-workflow__fields {
+  gap: 0.9rem 1.5rem;
+}
+
+.existing-client .bulk-workflow__field {
+  min-width: 0;
+}
+
+.existing-client .bulk-workflow__field input,
+.existing-client .bulk-workflow__field select,
+.existing-client .bulk-workflow__field textarea {
+  width: 100%;
+  min-height: 43px;
+  box-sizing: border-box;
+  padding: 0.65rem 0.15rem;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.87rem;
+  outline: none;
+  box-shadow: none !important;
+  transition:
+    border-color 240ms ease,
+    border-width 240ms ease,
+    color 240ms ease;
+}
+
+.existing-client .bulk-workflow__field input::placeholder,
+.existing-client .bulk-workflow__field textarea::placeholder {
+  color: #a0aab8;
+  opacity: 1;
+}
+
+.existing-client .bulk-workflow__field input:hover:not(:disabled),
+.existing-client .bulk-workflow__field select:hover:not(:disabled),
+.existing-client .bulk-workflow__field textarea:hover:not(:disabled) {
+  border-bottom-color: #94a3b8 !important;
+}
+
+.existing-client .bulk-workflow__field input:focus,
+.existing-client .bulk-workflow__field select:focus,
+.existing-client .bulk-workflow__field textarea:focus {
+  background: transparent !important;
+  border-bottom: 2px solid #6366f1 !important;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.existing-client .bulk-workflow__field input:disabled,
+.existing-client .bulk-workflow__field select:disabled,
+.existing-client .bulk-workflow__field textarea:disabled {
+  background: transparent !important;
+  border-bottom: 1px dashed #e2e8f0 !important;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.existing-client .bulk-workflow__field select {
+  cursor: pointer;
+}
+
+.existing-client .bulk-workflow__field-label {
+  margin-bottom: 0.15rem;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+.existing-client .bulk-workflow__subsection {
+  margin-top: 1.5rem;
+  padding-top: 1.35rem;
+}
+
+.existing-client .bulk-workflow__subsection .bulk-workflow__fields {
+  grid-template-columns: minmax(220px, 1fr);
+  max-width: 480px;
+}
+
+.existing-client .bulk-workflow__hint {
+  line-height: 1.55;
+}
+
+.existing-client .bulk-workflow__scan .bulk-workflow__field {
+  max-width: 480px;
+}
+
+/* =========================================================
+   WORKFLOW PANEL TRANSITIONS
+   Subtle fade with minimal vertical movement.
+   ========================================================= */
+
+.workflow-transition {
+  width: 100%;
+}
+
+.workflow-transition--hidden {
+  display: none;
+}
+
+.workflow-transition--entering {
+  animation: workflow-enter 450ms ease both;
+}
+
+.workflow-transition--exiting {
+  animation: workflow-exit 450ms ease both;
+}
+
+@keyframes workflow-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes workflow-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-transition--entering,
+  .workflow-transition--exiting {
+    animation-duration: 1ms;
+  }
 }

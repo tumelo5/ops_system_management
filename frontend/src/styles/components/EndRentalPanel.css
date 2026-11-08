@@ -1,5 +1,10 @@
 /* Styles for EndRentalPanel.jsx */
 
+/* End date now sits inside the scan card, under the scan box */
+.end-rental__date {
+  margin-top: 1.25rem;
+}
+
 .end-rental__summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

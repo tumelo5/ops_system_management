@@ -1,26 +1,106 @@
-/* Styles for RentalPanel.jsx */
 
-.rental-row__fields {
+/* =========================================================
+   RENTAL PANEL
+   Modern enterprise form styling
+   ========================================================= */
+
+/* Main rental fields */
+
+.bulk-workflow__card .bulk-workflow__fields {
   display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1fr auto;
-  gap: 0.75rem;
-  align-items: end;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
-.rental-row--error {
-  border-color: var(--color-error-border, #fca5a5);
-  background: var(--color-error-bg, #fef2f2);
+/* Field containers */
+
+.bulk-workflow__card .bulk-workflow__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.rental-row__error {
-  margin: 0.6rem 0 0;
+/* Labels */
+
+.bulk-workflow__card .bulk-workflow__field-label {
+  color: #475569;
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--color-error-text, #b91c1c);
 }
 
-@media (max-width: 760px) {
-  .rental-row__fields {
+/* Inputs and dropdowns */
+
+.bulk-workflow__card .bulk-workflow__field input,
+.bulk-workflow__card .bulk-workflow__field select {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0.7rem 0.9rem;
+
+  background: #f8fafc;
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.85rem;
+
+  outline: none;
+  transition: all 0.18s ease;
+}
+
+/* Placeholder */
+
+.bulk-workflow__card .bulk-workflow__field input::placeholder {
+  color: #94a3b8;
+}
+
+/* Hover */
+
+.bulk-workflow__card .bulk-workflow__field input:hover,
+.bulk-workflow__card .bulk-workflow__field select:hover {
+  background: #f1f5f9;
+}
+
+/* Focus */
+
+.bulk-workflow__card .bulk-workflow__field input:focus,
+.bulk-workflow__card .bulk-workflow__field select:focus {
+  background: #ffffff;
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Disabled */
+
+.bulk-workflow__card .bulk-workflow__field input:disabled,
+.bulk-workflow__card .bulk-workflow__field select:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Actions */
+
+.bulk-workflow__card .bulk-workflow__actions {
+  margin-top: 1.25rem;
+}
+
+/* Responsive */
+
+@media (max-width: 600px) {
+  .bulk-workflow__card .bulk-workflow__fields {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-workflow__card .bulk-workflow__field * {
+    transition: none !important;
   }
 }

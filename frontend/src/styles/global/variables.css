@@ -1,22 +1,22 @@
 :root {
-  --color-bg-page: #f4f4fd;
-  --color-bg-card: #fff;
-  --color-bg-muted: #eef0fc;
-  --color-bg-disabled: #f0f0f7;
+  --color-bg-page: #E9EEF6;
+  --color-bg-card: #FFFFFF;
+  --color-bg-muted: #E8EDF6;
+  --color-bg-disabled: #F0F2F7;
 
-  --color-text: #1a1a1a;
-  --color-text-secondary: #404040;
-  --color-text-muted: #737373;
-  --color-text-placeholder: #a3a3a3;
-  --color-text-label: #555;
+ --color-text: #1A1A1A;
+  --color-text-secondary: #404B5D;
+  --color-text-muted: #6B778A;
+  --color-text-placeholder: #9AA4B2;
+  --color-text-label: #465166;
 
-  --color-border: #dcdcf0;
-  --color-border-hover: #c3c3e8;
-  --color-border-subtle: #e8e8f7;
+--color-border: #D5DEEA;
+  --color-border-hover: #B9C8DD;
+  --color-border-subtle: #E3E9F1;
 
-  --color-primary: #4f46e5;
-  --color-primary-hover: #4338ca;
-  --color-primary-disabled: #c7d2fe;
+  --color-primary: #4F46E5;
+  --color-primary-hover: #4338CA;
+  --color-primary-disabled: #C7D2FE;
 
   --color-success-bg: #f0fdf4;
   --color-success-border: #bbf7d0;

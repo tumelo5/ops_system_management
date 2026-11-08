@@ -1,7 +1,22 @@
 /* Styles for ScanBox.jsx (and the lock hint shown beside it in the rental panels) */
 
+/*
+  Width follows the longest serial number.
+  ScanBox.jsx sets --scan-chars (a plain number = characters in the longest line)
+  on .scan-box-wrap. Monospace at 0.9rem is about 0.54rem per character.
+  The extra 10rem covers the row padding, the gap and the status text
+  on the right ("Not found", "Checking...", etc.).
+*/
 .scan-box-wrap {
+  --scan-char-width: 0.54rem;
+  --scan-extra: 10rem;
+
   margin-top: 0.25rem;
+  box-sizing: border-box;
+  width: calc(var(--scan-chars, 0) * var(--scan-char-width) + var(--scan-extra));
+  min-width: min(320px, 100%);
+  max-width: 100%;
+  transition: width 0.15s ease;
 }
 
 .scan-box__header {
@@ -17,6 +32,7 @@
 .scan-box {
   position: relative;
   box-sizing: border-box;
+  width: 100%;
   min-height: calc(3 * 1.75rem + 1.2rem + 2px);
   overflow: hidden;
   background: var(--color-bg-card);
@@ -146,4 +162,11 @@
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--color-error-text, #b91c1c);
+}
+
+
+.notification {            /* use your real class name */
+  width: fit-content;
+  max-width: 100%;
+  min-width: 240px;
 }
