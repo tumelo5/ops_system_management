@@ -8,34 +8,55 @@ The `main` branch represents a stable baseline.
 
 
 ## Overview
-OPS System Management is a web-based application designed to track devices across multiple operational modules, recording their status, movement, and relevant user activities. The system aims to provide a centralized alternative to spreadsheet-based tracking, improving visibility, data consistency, accountability, and workflow management.
+OPS System Management is a web-based application for tracking devices across multiple operational modules, recording their status, their movement and the user activity around them. It gives a device-maintenance provider one place for structured records, defined business rules and controlled workflows.
 
-The project is informed by practical operational challenges and explores how software can support structured processes, reliable record-keeping, and better data management.
+The domain is modelled on common device-maintenance operations. Business names, figures and policies used in this repository are illustrative.
 
 ## Purpose
-The purpose of OPS System Management is to improve how devices, their statuses, and related activities are tracked and managed. Spreadsheet-based approaches can make it difficult to maintain consistent records, monitor device movement, and establish clear accountability across workflows.
+Tracking devices across several teams needs consistent records, visible movement and clear accountability. OPS addresses this with structured data, enforced business rules and workflows that connect the modules, so records stay accurate and changes can be traced. The design is intended to be adaptable to different business requirements.
 
 OPS aims to address these challenges through a centralized system with structured data, defined business rules, and controlled workflows. The goal is to improve record accuracy, traceability, and operational efficiency while providing a foundation that can be adapted to different business requirements.
 
 ## Tech Stack
-OPS System Management uses a full-stack architecture:
-Frontend: React.js, CSS, JavaScript
-Backend: Django, Python, Django REST Framework
-Database: PostgreSQL
-Deployment & DevOps: Docker, Kubernetes, GitHub Actions (CI/CD) (planned)
+Layer	Technology
+Frontend	React, JavaScript, CSS
+Backend	Python, Django, Django REST Framework
+Notification service	Node.js, Express (Server-Sent Events)
+Database	PostgreSQL
+Authentication	JWT (SimpleJWT) with department-based permissions
+Testing	Django test suite, Playwright (end-to-end), Node.js built-in test runner
+DevOps	Docker, Docker Compose; GitHub Actions CI/CD and Kubernetes planned
 
 The project is being developed incrementally, from defining business requirements and designing data models to implementing backend functionality and building the user interface. Deployment and automation will be introduced as the system matures.
 
+## Architecture
+
+The backend follows a strict three-layer pattern:
+
+Views orchestrate HTTP and delegate.
+Serializers validate incoming data early.
+Services own all business logic and database writes. transaction.atomic is used only in this layer.
+
 ## Features / Key Functionalities
 Core Features
-- Device Tracking: Tracks devices and their associated records throughout defined operational workflows.
-- Status Management: Maintains device statuses as they progress through the system.
-- Structured Data Management: Uses relational data models and validation to maintain data consistency.
-- Workflow Management: Supports interactions between operational modules through defined business rules.
-- Data Integrity: Applies validation and database constraints to help prevent invalid or inconsistent records.
-- Activity Traceability: Provides a foundation for recording relevant user actions and changes.
+- Device tracking: follows devices and their records through defined operational workflows.
+- Status management: maintains device statuses as they progress through the system.
+- Structured data and integrity: relational models, validation and database constraints prevent invalid or inconsistent records.
+- Workflow management: modules interact through defined business rules.
+- Device rentals: assigns provider-owned devices to clients in bulk and ends rentals when devices return, with one active rental per device.
+- Department-based access: users sign in with a JWT that carries their department, and permissions follow it.
+- Traceability: records device movement, status changes and department activity.
 
-Implementation status varies by feature as development continues.
+Implementation Status
+Area	Status
+Authentication and department-based access	Implemented
+Warehouse: client, model, version and batch management, bulk device scanning, data corrections	Implemented
+Warehouse: device rentals (bulk assign and end)	Implemented
+Warehouse: device returning	In design
+Repairs	Designed (data model and workflows); implementation next
+Production, Small Parts Stores, Finance	Planned
+Real-time notifications (Node.js service)	Service implemented; backend integration in progress
+Reporting and analytics, hosted deployment, CI/CD	Planned
 
 ## Planned / Upcoming Features
 - Automated Notifications: Alerts users when defined events or conditions require attention.
@@ -60,9 +81,7 @@ ops_system_management/
 
 ## Documentation
 
-Business requirements are being documented to establish the system's intended functionality and expected behavior.
-
-Technical documentation, including architecture, database design, and workflow details, will be progressively published as the implementation develops and the corresponding designs are validated.
+The business requirements are in docs/BUSINESS_REQUIREMENTS.md. Technical documentation, including architecture, database design, workflows and ADRs, will be published progressively as designs are validated against the implementation.
 
 ## Setup Instructions
 OPS System Management is currently intended to run in a local development environment.
