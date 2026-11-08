@@ -4,34 +4,51 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services import (
     ClientService, DeviceService,
-    BatchService,
     DeviceRentalService, RentalConflict,
-    DeviceNotFound, CompanyService,
-    BatchCodeService,
+    DeviceNotFound, CompanyService, CompanyAlreadySet,
+    BatchCodeService, CorrectionConflict,
     )
 from .serializers import (
     ClientSerializer, ClientDropDownSerializer,
     BatchSerializer, DeviceModelVersionSerializer,
     DeviceStagingSerializer, ModelVersionDropDownSerializer,
-    BatchCorrectionSerializer, ReferenceCorrectionSerializer,
-    DeviceRentalSerializer,SetCompanySerializer,
+    SerialNumberSerializer, DeviceScanSerializer, ConfirmDevicesSerializer,
+    ValidateSelectionSerializer,
+    ClientCorrectionSerializer, ModelCorrectionSerializer,
+    VersionCorrectionSerializer, BatchCodeCorrectionSerializer,
+    DeviceRentalSerializer, SetCompanySerializer,
     ActiveRentalSerializer, EndedRentalSerializer,
-    EndRentalsSerializer, RentableDeviceSerializer,
-    DeviceModelVersionSerializer )
-from .models import Client,DeviceModelVersion, Batch
+    EndRentalSerializer, EndRentalsSerializer, RentableDeviceSerializer,
+    )
+from .models import Client, DeviceModelVersion, Batch
 from backend.common.permissions import IsWarehouseAgent
-# from core.throttling import BulkWriteThrottle
 
 logger = logging.getLogger("warehouse.api")
 
+
 # To be moved to the common as it will be used in other files as well
+def _first_message(errors):
+    """Return the first error string found in a (possibly nested) DRF errors structure."""
+    if isinstance(errors, dict):
+        for value in errors.values():
+            message = _first_message(value)
+            if message:
+                return message
+    elif isinstance(errors, (list, tuple)):
+        for item in errors:
+            message = _first_message(item)
+            if message:
+                return message
+    elif errors:
+        return str(errors)
+    return None
+
+
 def _flatten_errors(errors):
-
-    # this docstring is for documentation later
     """
-    Flatten DRF serializer error dicts into a single readable string.
+    Flatten DRF validation errors into a single readable string.
 
-    DRF's ModelSerializer returns validation errors as a dict e.g.:
+    DRF returns validation errors as a dict e.g.:
         {"client_name": ["client with this client name already exists."]}
 
     This includes errors raised by auto-generated validators such as
@@ -43,7 +60,10 @@ def _flatten_errors(errors):
     error dicts instead — one per input item, positionally aligned,
     with {} for items that passed validation e.g.:
         [{}, {"client_name": ["already exists."]}, {}]
-    This function returns the first non-empty error found in that list.
+    List-level errors (empty list, too many rows, duplicate rows) come back
+    as {"non_field_errors": [...]}, and ListField errors are keyed by position
+    e.g. {"serial_numbers": {0: ["..."]}}. This function returns the first
+    error string found in any of these shapes.
 
     Returning the raw dict/list to the frontend causes React to crash when
     it tries to render an object as a child component. This function
@@ -51,21 +71,23 @@ def _flatten_errors(errors):
     which code path raises the error, keeping the error contract
     consistent for the frontend.
     """
-    # For function within this file.
-    """
-    Flatten DRF validation errors into a single readable string.
-    Handles both single and many=True serializer errors.
-    """
-    if isinstance(errors, list):
-        for item_errors in errors:
-            if item_errors:
-                return _flatten_errors(item_errors)
-        return "validation error."
+    return _first_message(errors) or "validation error."
 
-    for field, errs in errors.items():
-        for err in errs:
-            return str(err)
-    return "validation error."
+
+# Helper function to validate multiple serializers and return the first error encountered.
+def _first_validation_error(*serializers_list):
+    """
+    Validate each serializer in order. Returns a 400 Response for the first one that is
+    invalid, or None when all of them are valid.
+    """
+    for serializer in serializers_list:
+        if not serializer.is_valid():
+            logger.warning(f"{serializer.__class__.__name__} | invalid | errors={serializer.errors}")
+            return Response(
+                {"error": _flatten_errors(serializer.errors)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    return None
 
 
 # Handles bulk creation of clients and device models.
@@ -86,7 +108,6 @@ class BulkClientsView(APIView):
         try:
             ClientService.create_bulk_base(validated_entries)
         except ValueError as e:
-            logger.warning(f"BulkClientsView POST | base | conflict | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             logger.error(f"BulkClientsView POST | base | failed | error={str(e)}", exc_info=True)
@@ -124,7 +145,6 @@ class BulkClientsLinkingView(APIView):
         try:
             ClientService.create_bulk_links(validated_links)
         except ValueError as e:
-            logger.warning(f"BulkClientsLinkingView POST | linking | conflict | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             logger.error(f"BulkClientsLinkingView POST | linking | failed | error={str(e)}", exc_info=True)
@@ -161,41 +181,28 @@ class ValidateSelectionView(APIView):
         Returns the batches this client already has for the selected model and version.
         The list is empty when the client has not bought it yet.
         """
-        client_id  = request.data.get("client")
-        version_id = request.data.get("version")
+        logger.info(
+            f"ValidateSelectionView | user={request.user} | client_id={request.data.get('client')} "
+            f"version_id={request.data.get('version')}"
+        )
 
-        logger.info(f"ValidateSelectionView | user={request.user} | client_id={client_id} version_id={version_id}")
+        serializer = ValidateSelectionSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
 
-        if not all([client_id, version_id]):
-            logger.warning("ValidateSelectionView | missing required fields")
-            return Response({"error": "client and version are required."}, status=status.HTTP_400_BAD_REQUEST)
+        client_id = serializer.validated_data["client"]
+        version_id = serializer.validated_data["version"]
 
         try:
             batches = ClientService.get_client_batches_for_version(client_id, version_id)
         except ValueError as e:
-            logger.warning(f"ValidateSelectionView | not found | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"ValidateSelectionView | failed | error={str(e)}", exc_info=True)
             return Response({"error": "Failed to check batches."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"batches": batches}, status=status.HTTP_200_OK)
-        
-
-# Helper function to validate multiple serializers and return the first error encountered.
-def _first_validation_error(*serializers_list):
-    """
-    Validate each serializer in order. Returns a 400 Response for the first one that is
-    invalid, or None when all of them are valid.
-    """
-    for serializer in serializers_list:
-        if not serializer.is_valid():
-            logger.warning(f"{serializer.__class__.__name__} | invalid | errors={serializer.errors}")
-            return Response(
-                {"error": _flatten_errors(serializer.errors)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-    return None
 
 
 class ExistingClientBatchView(APIView):
@@ -232,7 +239,6 @@ class ExistingClientBatchView(APIView):
                 batch_code=batch_code,
             )
         except ValueError as e:
-            logger.warning(f"ExistingClientBatchView | conflict | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             logger.error(f"ExistingClientBatchView | failed | error={str(e)}", exc_info=True)
@@ -250,23 +256,19 @@ class ScanDeviceView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def post(self, request):
-        serial_number = request.data.get("serial_number")
-        logger.info(f"ScanDeviceView | user={request.user} | serial_number={serial_number}")
-
-        if not serial_number:
-            logger.warning("ScanDeviceView | serial number missing")
-            return Response({"error": "Serial number is required."}, status=status.HTTP_400_BAD_REQUEST)
+        logger.info(f"ScanDeviceView | user={request.user} | serial_number={request.data.get('serial_number')}")
 
         # SN must follow the format: <batch_code>-<device_id>
-        parts = serial_number.strip().split('-')
-        if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
-            logger.warning(f"ScanDeviceView | invalid serial number format | serial_number={serial_number}")
-            return Response({"error": "Invalid serial number."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = DeviceScanSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+
+        serial_number = serializer.validated_data["serial_number"]
 
         try:
             staging = DeviceService.scan_device(serial_number)
         except ValueError as e:
-            logger.warning(f"ScanDeviceView | conflict | serial_number={serial_number} | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             logger.error(f"ScanDeviceView | failed | serial_number={serial_number} | error={str(e)}", exc_info=True)
@@ -274,11 +276,9 @@ class ScanDeviceView(APIView):
 
         logger.info(f"ScanDeviceView | success | serial_number={staging.serial_number}")
 
-        serializer = DeviceStagingSerializer(staging)
-
         return Response({
             "message": f"Device {staging.serial_number} scanned successfully.",
-            "device":  serializer.data
+            "device":  DeviceStagingSerializer(staging).data
         }, status=status.HTTP_201_CREATED)
 
 
@@ -287,17 +287,18 @@ class ConfirmDeviceView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def post(self, request):
-        serial_number = request.data.get("serial_number")
-        logger.info(f"ConfirmDeviceView | user={request.user} | serial_number={serial_number}")
+        logger.info(f"ConfirmDeviceView | user={request.user} | serial_number={request.data.get('serial_number')}")
 
-        if not serial_number:
-            logger.warning("ConfirmDeviceView | serial number missing")
-            return Response({"error": "Serial number is required."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = SerialNumberSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+
+        serial_number = serializer.validated_data["serial_number"]
 
         try:
             device = DeviceService.confirm_device(serial_number)
         except ValueError as e:
-            logger.warning(f"ConfirmDeviceView | not found | serial_number={serial_number} | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"ConfirmDeviceView | failed | serial_number={serial_number} | error={str(e)}", exc_info=True)
@@ -315,17 +316,18 @@ class ConfirmBulkDevicesView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def post(self, request):
-        serial_numbers = request.data.get("serial_numbers", [])
-        logger.info(f"ConfirmBulkDevicesView | user={request.user} | count={len(serial_numbers)}")
+        logger.info(f"ConfirmBulkDevicesView | user={request.user}")
 
-        if not serial_numbers:
-            logger.warning("ConfirmBulkDevicesView | no serial numbers provided")
-            return Response({"error": "No serial numbers provided."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ConfirmDevicesSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+
+        serial_numbers = serializer.validated_data["serial_numbers"]
 
         try:
             confirmed = DeviceService.confirm_bulk_devices(serial_numbers)
         except ValueError as e:
-            logger.warning(f"ConfirmBulkDevicesView | not found | error={str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"ConfirmBulkDevicesView | failed | error={str(e)}", exc_info=True)
@@ -339,7 +341,7 @@ class ConfirmBulkDevicesView(APIView):
 
 
 
-# --- Reference lookups (Client / Model / Version dropdowns) ---
+# Reference lookups (Client / Model / Version dropdowns) ---
 
 class ClientListView(APIView):
     permission_classes = [IsWarehouseAgent]
@@ -367,6 +369,7 @@ class ModelListView(APIView):
             logger.error(f"ModelListView GET | failed | error={str(e)}", exc_info=True)
             return Response({"error": "Failed to retrieve models."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class ModelVersionListView(APIView):
     permission_classes = [IsWarehouseAgent]
 
@@ -386,20 +389,21 @@ class ModelVersionListView(APIView):
             logger.error(f"ModelVersionListView GET | failed | error={str(e)}", exc_info=True)
             return Response({"error": "Failed to retrieve versions."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# --- Reference corrections (Client / Model / Version — always direct, self-service) ---
+# Reference corrections (Client / Model / Version — always direct, self-service) ---
 class ClientCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def patch(self, request, client_id):
-        new_name = (request.data.get("client_name") or "").strip().lower()
-        if not new_name:
-            return Response({"error": "Client name is required."}, status=status.HTTP_400_BAD_REQUEST)
-        if len(new_name) > 255:
-            return Response({"error": "Client name must be 255 characters or fewer."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ClientCorrectionSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+        data = serializer.validated_data
+
         try:
             ClientService.correct_reference(
-                Client, client_id, {"client_name": new_name},
-                user=request.user, reason=request.data.get("reason", ""),
+                Client, client_id, {"client_name": data["client_name"]},
+                user=request.user, reason=data.get("reason") or "",
             )
         except Client.DoesNotExist:
             return Response({"error": "Client not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -408,20 +412,19 @@ class ClientCorrectionView(APIView):
         return Response({"message": "Client corrected."}, status=status.HTTP_200_OK)
 
 
-
 class DeviceModelCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def patch(self, request):
-        old_name = (request.data.get("model") or "").strip().lower()
-        new_name = (request.data.get("new_model") or "").strip().lower()
-        if not old_name or not new_name:
-            return Response({"error": "Select a model and enter the corrected name."}, status=status.HTTP_400_BAD_REQUEST)
-        if len(new_name) > 100:
-            return Response({"error": "Model name must be 100 characters or fewer."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ModelCorrectionSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+        data = serializer.validated_data
+
         try:
             ClientService.rename_model(
-                old_name, new_name, user=request.user, reason=request.data.get("reason", ""),
+                data["model"], data["new_model"], user=request.user, reason=data.get("reason") or "",
             )
         except DeviceModelVersion.DoesNotExist:
             return Response({"error": "Model not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -434,15 +437,16 @@ class DeviceModelVersionCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def patch(self, request, version_id):
-        new_version = (request.data.get("version") or "").strip().lower()
-        if not new_version:
-            return Response({"error": "Version is required."}, status=status.HTTP_400_BAD_REQUEST)
-        if len(new_version) > 50:
-            return Response({"error": "Version must be 50 characters or fewer."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = VersionCorrectionSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+        data = serializer.validated_data
+
         try:
             ClientService.correct_reference(
-                DeviceModelVersion, version_id, {"version": new_version},
-                user=request.user, reason=request.data.get("reason", ""),
+                DeviceModelVersion, version_id, {"version": data["version"]},
+                user=request.user, reason=data.get("reason") or "",
             )
         except DeviceModelVersion.DoesNotExist:
             return Response({"error": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -469,14 +473,15 @@ class BatchCodeCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     def patch(self, request, batch_id):
-        new_code = (request.data.get("batch_code") or "").strip().lower()
-        if not new_code:
-            return Response({"error": "Batch code is required."}, status=status.HTTP_400_BAD_REQUEST)
-        if len(new_code) > 100:
-            return Response({"error": "Batch code must be 100 characters or fewer."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = BatchCodeCorrectionSerializer(data=request.data)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+        data = serializer.validated_data
+
         try:
             BatchCodeService.correct_batch_code(
-                batch_id, new_code, user=request.user, reason=request.data.get("reason", ""),
+                batch_id, data["batch_code"], user=request.user, reason=data.get("reason") or "",
             )
         except Batch.DoesNotExist:
             return Response({"error": "Batch not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -485,21 +490,23 @@ class BatchCodeCorrectionView(APIView):
         return Response({"message": "Batch code corrected."}, status=status.HTTP_200_OK)
 
 
-# --- Device rental (approval-gated) ---
+# Device rental ---
 class DeviceRentalView(APIView):
     permission_classes = [IsWarehouseAgent]
- 
+
     def post(self, request):
         serializer = DeviceRentalSerializer(
             data=request.data, many=True, allow_empty=False, max_length=50
         )
-        serializer.is_valid(raise_exception=True)
- 
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
+
         try:
             rentals = DeviceRentalService.create_rentals(serializer.validated_data)
         except RentalConflict as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
- 
+
         return Response(
             {
                 "message": f"{len(rentals)} device(s) rented out.",
@@ -514,14 +521,14 @@ class DeviceRentalView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
- 
- 
-# --- Scan-time check on Assign Rental (NEW) ---
+
+
+# Scan-time check on Assign Rental ---
 class RentableCheckView(APIView):
     """GET ?serial_number=SN -> 200 device info | 400 | 404 not found | 409 reason."""
- 
+
     permission_classes = [IsWarehouseAgent]
- 
+
     def get(self, request):
         serial_number = request.query_params.get("serial_number", "").strip()
         if not serial_number:
@@ -536,12 +543,12 @@ class RentableCheckView(APIView):
         except RentalConflict as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         return Response(RentableDeviceSerializer(device).data)
- 
- 
-# --- Scan on End Rental (UNCHANGED) ---
+
+
+# Scan on End Rental ---
 class ActiveRentalView(APIView):
     permission_classes = [IsWarehouseAgent]
- 
+
     def get(self, request):
         serial_number = request.query_params.get("serial_number", "").strip()
         if not serial_number:
@@ -549,7 +556,7 @@ class ActiveRentalView(APIView):
                 {"error": "serial_number is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
- 
+
         rental = DeviceRentalService.get_active_rental(serial_number)
         if rental is None:
             return Response(
@@ -557,15 +564,17 @@ class ActiveRentalView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         return Response(ActiveRentalSerializer(rental).data)
- 
- 
-# --- End ONE rental: the documented contract { rental_id, end_date } (RESTORED, replaces my old version) ---
+
+
+# End ONE rental: contract { rental_id, end_date } ---
 class EndRentalView(APIView):
     permission_classes = [IsWarehouseAgent]
- 
+
     def post(self, request):
         serializer = EndRentalSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
         data = serializer.validated_data
         try:
             rental = DeviceRentalService.end_rental(data["rental_id"].pk, data["end_date"])
@@ -578,15 +587,17 @@ class EndRentalView(APIView):
             },
             status=status.HTTP_200_OK,
         )
- 
- 
-# --- End MANY rentals, one shared end date, all-or-nothing (NEW) ---
+
+
+# End MANY rentals, one shared end date, all-or-nothing ---
 class EndRentalsView(APIView):
     permission_classes = [IsWarehouseAgent]
- 
+
     def post(self, request):
         serializer = EndRentalsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
         try:
             rentals = DeviceRentalService.end_rentals(
                 serializer.validated_data["rental_ids"],
@@ -601,22 +612,24 @@ class EndRentalsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
- 
- 
+
+
 def _company_payload(client):
     return {"is_set": client is not None,
             "client": {"id": client.id, "client_name": client.client_name} if client else None}
- 
- 
+
+
 class CompanyView(APIView):
     permission_classes = [IsWarehouseAgent]
- 
+
     def get(self, request):
         return Response(_company_payload(CompanyService.get_company_client_or_none()))
- 
+
     def post(self, request):
         serializer = SetCompanySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        error_response = _first_validation_error(serializer)
+        if error_response:
+            return error_response
         try:
             profile = CompanyService.set_company(client=serializer.validated_data["client"], user=request.user)
         except CompanyAlreadySet as e:
