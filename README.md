@@ -58,7 +58,7 @@ A small Node.js service (`notifier/`) is designed to push real-time events to th
 | Warehouse: device returning | In design |
 | Repairs | Designed (data model and workflows); implementation next |
 | Production, Small Parts Stores, Finance | Planned |
-| Real-time notifications (Node.js service) | Service implemented; backend integration in progress |
+| Real-time notifications (Node.js service) | planned |
 | Reporting and analytics, hosted deployment, CI/CD | Planned |
 
 ## Project Structure
@@ -68,7 +68,6 @@ ops_system_management/
 ├── backend/
 ├── core/
 ├── frontend/
-├── notifier/              # Node.js real-time notification service
 ├── docs/
 │   └── BUSINESS_REQUIREMENTS.md
 ├── docker-compose.yml
@@ -90,20 +89,4 @@ OPS is currently intended to run in a local development environment.
 2. Start the application with Docker Compose.
 3. Open the application at the configured local URL.
 
-To run the notification service on its own:
 
-```
-cd notifier
-cp .env.example .env
-npm install
-npm run dev
-```
-
-## Tests
-
-```
-python manage.py test      # backend
-cd notifier && npm test    # notification service
-```
-
-Playwright end-to-end tests cover the main user workflows.
