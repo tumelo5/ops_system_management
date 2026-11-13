@@ -129,7 +129,6 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
   const [selected, setSelected] = useState('');
 
   const [newValue, setNewValue] = useState('');
-  const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const loadLists = useCallback(() => {
@@ -155,7 +154,6 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
   useEffect(() => {
     setSelected('');
     setNewValue('');
-    setReason('');
     setVersions([]);
 
     if (recordType === 'version') {
@@ -190,7 +188,7 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selected || !newValue.trim() || !reason.trim()) {
+    if (!selected || !newValue.trim()) {
       return;
     }
 
@@ -209,19 +207,18 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
 
     try {
       if (recordType === 'client') {
-        await correctClient(selected, newValue.trim(), reason.trim());
+        await correctClient(selected, newValue.trim());
       } else if (recordType === 'model') {
-        await correctModel(selected, newValue.trim(), reason.trim());
+        await correctModel(selected, newValue.trim());
         setSelectedModel('');
       } else {
-        await correctModelVersion(selected, newValue.trim(), reason.trim());
+        await correctModelVersion(selected, newValue.trim());
       }
 
       notify('success', 'Correction saved successfully.');
-
+      
       setNewValue('');
       setSelected('');
-      setReason('');
 
       loadLists();
 
@@ -473,7 +470,6 @@ function ReferenceCorrectionForm({ notify, clearBanner }) {
             submitting ||
             !selected ||
             !newValue.trim() ||
-            !reason.trim() ||
             !selectedOption
           }
         >

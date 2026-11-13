@@ -1,25 +1,13 @@
-import { useState, useEffect } from "react";
-import { scanDevice, confirmBulkDevices } from "../../../services/DeviceApi";
+import { useState } from "react";
+import { scanDevice } from "../../../services/DeviceApi";
 import Notification, { useNotification } from "./Notifications";
 
 // Props:
-//   unlocked      - scanning is only allowed once a batch exists for the flow
-//   onSaved       - called after Save All succeeds (the panel decides what to reset)
-//   onDirtyChange - called with true/false when there are unsaved scanned devices
-//   embedded      - removes the standalone card wrapper when used inside another card
-export default function ScanCard({
-  unlocked,
-  onSaved,
-  onDirtyChange,
-  embedded = false,
-}) {
+//   unlocked - scanning is only allowed once a batch exists for the flow
+//   embedded - removes the standalone card wrapper when used inside another card
+export default function ScanCard({ unlocked, embedded = false }) {
   const [serialNumber, setSerialNumber] = useState("");
-  const [scannedDevices, setScannedDevices] = useState([]);
   const [note, notify, clearNote] = useNotification();
-
-  useEffect(() => {
-    onDirtyChange?.(scannedDevices.length > 0);
-  }, [scannedDevices.length, onDirtyChange]);
 
   const handleSerialKeyDown = async (e) => {
     if (e.key !== "Enter") return;
@@ -29,52 +17,19 @@ export default function ScanCard({
     const serial = serialNumber.trim();
     if (!serial) return;
 
-    if (scannedDevices.some((device) => device.serial_number === serial)) {
-      notify("error", `${serial} already scanned.`);
-      return;
-    }
-
+    // Clear immediately so the next scan can start while this one is in flight
+    setSerialNumber("");
     clearNote();
 
     try {
       const response = await scanDevice({ serial_number: serial });
-      setScannedDevices((prev) => [...prev, response.device]);
-      setSerialNumber("");
+      notify("success", `${response.serial_number || serial}: success`);
     } catch (error) {
       notify(
         "error",
-        error.response?.data?.error || "Failed to scan device."
+        `${serial}: ${error.response?.data?.error || "Failed to scan device."}`
       );
       console.error("Scan failed:", error.response?.data);
-    }
-  };
-
-  const handleRemove = (serialNumberToRemove) => {
-    setScannedDevices((prev) =>
-      prev.filter((device) => device.serial_number !== serialNumberToRemove)
-    );
-  };
-
-  const handleSaveAll = async () => {
-    if (scannedDevices.length === 0) return;
-
-    clearNote();
-
-    try {
-      const response = await confirmBulkDevices({
-        serial_numbers: scannedDevices.map((device) => device.serial_number),
-      });
-
-      setScannedDevices([]);
-      setSerialNumber("");
-      notify("success", response.message || "All devices saved and activated.");
-      onSaved?.();
-    } catch (error) {
-      notify(
-        "error",
-        error.response?.data?.error || "Failed to save devices."
-      );
-      console.error("Save all failed:", error);
     }
   };
 
@@ -90,11 +45,12 @@ export default function ScanCard({
         </label>
         <input
           id="scan-device-serial"
-          placeholder="Enter serial number — press Enter to add"
+          placeholder="Enter serial number — press Enter to scan"
           value={serialNumber}
           onChange={(e) => setSerialNumber(e.target.value)}
           onKeyDown={handleSerialKeyDown}
           disabled={!unlocked}
+          autoFocus
         />
       </div>
 
@@ -105,58 +61,6 @@ export default function ScanCard({
       )}
 
       <Notification state={note} />
-
-      {scannedDevices.length > 0 && (
-        <div className="bulk-workflow__device-details">
-          <table className="bulk-workflow__device-table">
-            <thead>
-              <tr>
-                <th>Serial No.</th>
-                <th>Client</th>
-                <th>Batch</th>
-                <th>Model</th>
-                <th>Version</th>
-                <th>Status</th>
-                <th aria-label="Actions"></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {scannedDevices.map((device) => (
-                <tr key={device.serial_number}>
-                  <td>{device.serial_number}</td>
-                  <td>{device.client_name}</td>
-                  <td>{device.batch_code}</td>
-                  <td>{device.model}</td>
-                  <td>{device.version}</td>
-                  <td>{device.status}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="bulk-workflow__btn-remove"
-                      onClick={() => handleRemove(device.serial_number)}
-                      title="Remove"
-                      aria-label={`Remove ${device.serial_number}`}
-                    >
-                      🗑
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="bulk-workflow__device-actions">
-            <button
-              type="button"
-              className="bulk-workflow__btn bulk-workflow__btn--primary"
-              onClick={handleSaveAll}
-            >
-              Save All ({scannedDevices.length})
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 
