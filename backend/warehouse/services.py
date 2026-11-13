@@ -8,7 +8,7 @@ from django.utils import timezone
 from .models import (
     Client, Batch,
     DeviceModelVersion, Device,
-    DeviceStaging, BatchCorrection,  # REVIEW: BatchCorrection unused
+    BatchCorrection,
     DeviceRental, CompanyProfile,
 )
 
@@ -266,9 +266,7 @@ class ClientService:
 # Devices: scanning and confirming
 class DeviceService:
 
-    # -------------------------------------------------------------------------
-    # Scanning (staging)
-    # -------------------------------------------------------------------------
+    # Scanning
 
     @staticmethod
     def scan_device(serial_number):
@@ -287,99 +285,19 @@ class DeviceService:
             raise ValueError(f"No batch found for batch code '{batch_code}'.")
 
         try:
-            staging = DeviceStaging.objects.create(
-                serial_number=serial_number,
-                batch_code=batch.batch_code,
-                client_name=batch.client.client_name,
-                model=batch.model_version.model,
-                version=batch.model_version.version,
-                status='PENDING'
-            )
+            # savepoint, so a duplicate does not poison the surrounding transaction
+            with transaction.atomic():
+                Device.objects.create(
+                    serial_number=serial_number,
+                    batch=batch,
+                    device_status='ACTIVE'
+                )
         except IntegrityError:
-            logger.warning(f"scan_device | serial number already exists or staged | serial_number={serial_number}")
-            raise ValueError(f"Device '{serial_number}' already exists or has already been scanned.")
+            logger.warning(f"scan_device | serial number already exists | serial_number={serial_number}")
+            raise ValueError(f"Device '{serial_number}' already exists.")
 
-        logger.info(f"scan_device | success | staging_id={staging.id} serial_number={staging.serial_number}")
-        return staging
-
-    # -------------------------------------------------------------------------
-    # Confirming (staging -> Device)
-    # -------------------------------------------------------------------------
-
-    @staticmethod
-    @transaction.atomic
-    def confirm_device(serial_number):
-        logger.info(f"confirm_device | serial_number={serial_number}")
-
-        try:
-            staging = DeviceStaging.objects.select_for_update().get(serial_number=serial_number, status='PENDING')
-        except DeviceStaging.DoesNotExist:
-            logger.warning(f"confirm_device | no pending staging record | serial_number={serial_number}")
-            raise ValueError(f"No pending staging record found for '{serial_number}'.")
-
-        # REVIEW: this single-device version still passes model/version to Device and uses
-        # select_related('model_version__model'); the bulk version below no longer does.
-        batch = Batch.objects.select_related('model_version__model').get(batch_code=staging.batch_code)
-
-        device = Device.objects.create(
-            serial_number=staging.serial_number,
-            batch=batch,
-            model=batch.model_version.model,
-            version=batch.model_version,
-            device_status='ACTIVE'
-        )
-
-        staging.status = 'PROCESSED'
-        staging.save()
-
-        logger.info(f"confirm_device | success | device_id={device.id} serial_number={device.serial_number}")
-        return device
-
-    @staticmethod
-    @transaction.atomic
-    def confirm_bulk_devices(serial_numbers):
-        logger.info(f"confirm_bulk_devices | starting | count={len(serial_numbers)}")
-
-        staging_map = {
-            s.serial_number: s
-            for s in DeviceStaging.objects.select_for_update().filter(
-                serial_number__in=serial_numbers,
-                status='PENDING'
-            )
-        }
-
-        missing = [sn for sn in serial_numbers if sn not in staging_map]
-        if missing:
-            logger.warning(f"confirm_bulk_devices | missing staging records | serial_numbers={missing}")
-            raise ValueError(f"No pending staging record found for: {', '.join(missing)}.")
-
-        batch_codes = {s.batch_code for s in staging_map.values()}
-        batch_map = {
-            b.batch_code: b
-            for b in Batch.objects.select_related('model_version').filter(batch_code__in=batch_codes)
-        }
-
-        confirmed = []
-
-        for serial_number in serial_numbers:
-            staging = staging_map[serial_number]
-            batch   = batch_map[staging.batch_code]
-
-            device = Device.objects.create(
-                serial_number=staging.serial_number,
-                batch=batch,
-                # model=batch.model_version.model,
-                # version=batch.model_version,
-                device_status='ACTIVE'
-            )
-
-            confirmed.append(device)
-            logger.info(f"confirm_bulk_devices | confirmed | device_id={device.id} serial_number={device.serial_number}")
-
-        DeviceStaging.objects.filter(serial_number__in=serial_numbers).update(status='PROCESSED')
-
-        logger.info(f"confirm_bulk_devices | success | total_confirmed={len(confirmed)}")
-        return confirmed
+        logger.info(f"scan_device | success | serial_number={serial_number}")
+        
 
 
 # Batch corrections
@@ -413,7 +331,7 @@ class BatchService:
                     logger.warning(f"correct_batch_code | same code | batch_id={batch_id} | code={old_code}")
                     raise CorrectionConflict("The new batch code is the same as the current one.")
 
-                if Device.objects.filter(batch=batch).exists() or DeviceStaging.objects.filter(batch_code=old_code).exists():
+                if Device.objects.filter(batch=batch).exists():
                     logger.warning(f"correct_batch_code | in use, not correctable | batch_id={batch_id} | code={old_code}")
                     raise CorrectionConflict(
                         "Devices have already been scanned or registered under this batch code, so it can't be corrected."
@@ -442,7 +360,6 @@ class BatchCodeService:
         """
         return (
             Device.objects.filter(batch=batch).exists()
-            or DeviceStaging.objects.filter(batch_code=batch.batch_code).exists()
         )
 
     @staticmethod
