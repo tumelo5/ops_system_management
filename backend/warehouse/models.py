@@ -109,30 +109,6 @@ class Device(models.Model):
         return f"{self.serial_number} | {self.device_status}"
 
 
-# DEVICE STAGING (HUMAN-READABLE SNAPSHOT, NO FKs)
-# Flat snapshot of a scanned device, shown before confirmation.
-# To be revisited: devices can be saved without user confirmation, and this table holds data that isn't needed.
-class DeviceStaging(models.Model):
-    serial_number = models.CharField(max_length=100, unique=True)
-
-    # Human-readable snapshot taken at scan time (no FKs)
-    model = models.CharField(max_length=100)
-    version = models.CharField(max_length=50)
-    batch_code = models.CharField(max_length=100)
-    client_name = models.CharField(max_length=100)
-
-    # Validation
-    status = models.CharField(max_length=50, default='PENDING')
-    error_message = models.TextField(null=True, blank=True)
-
-    # Audit: when the device was scanned
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.serial_number} | {self.status}"
-
-
-
 # Rentals and company
 # DEVICE RENTAL
 # Device -> DeviceRental -> Client. Renting never changes the Device or its Batch.
