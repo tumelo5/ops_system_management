@@ -11,7 +11,6 @@ from .models import (
     Device,
     DeviceModelVersion,
     DeviceRental,
-    DeviceStaging,
 )
 
 logger = logging.getLogger("warehouse.api")
@@ -223,7 +222,7 @@ class ModelVersionDropDownSerializer(serializers.ModelSerializer):
         fields = ["id", "version"]
 
 
-# Scanning / confirming
+# Scanning
 # Case is deliberately left untouched here: the views never normalised serial numbers,
 # so the service owns how they are stored and compared. If the service expects uppercase,
 # add `return value.upper()` in validate_serial_number below.
@@ -266,20 +265,6 @@ class ConfirmDevicesSerializer(serializers.Serializer):
             "not_a_list": "serial_numbers must be a list.",
         },
     )
-
-
-class DeviceStagingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DeviceStaging
-        fields = [
-            "serial_number",
-            "batch_code",
-            "client_name",
-            "model",
-            "version",
-            "status",
-        ]
-        read_only_fields = fields
 
 
 # Existing Client: check a client's model/version selection

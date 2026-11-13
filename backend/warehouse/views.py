@@ -11,8 +11,8 @@ from .services import (
 from .serializers import (
     ClientSerializer, ClientDropDownSerializer,
     BatchSerializer, DeviceModelVersionSerializer,
-    DeviceStagingSerializer, ModelVersionDropDownSerializer,
-    SerialNumberSerializer, DeviceScanSerializer, ConfirmDevicesSerializer,
+    ModelVersionDropDownSerializer,
+    DeviceScanSerializer,
     ValidateSelectionSerializer,
     ClientCorrectionSerializer, ModelCorrectionSerializer,
     VersionCorrectionSerializer, BatchCodeCorrectionSerializer,
@@ -251,7 +251,7 @@ class ExistingClientBatchView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
-# Handles device scanning and staging before confirmation.
+# Handles device scanning: each valid scan is saved straight to Device.
 class ScanDeviceView(APIView):
     permission_classes = [IsWarehouseAgent]
 
@@ -267,78 +267,19 @@ class ScanDeviceView(APIView):
         serial_number = serializer.validated_data["serial_number"]
 
         try:
-            staging = DeviceService.scan_device(serial_number)
+            device = DeviceService.scan_device(serial_number)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             logger.error(f"ScanDeviceView | failed | serial_number={serial_number} | error={str(e)}", exc_info=True)
             return Response({"error": "Failed to scan device."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        logger.info(f"ScanDeviceView | success | serial_number={staging.serial_number}")
+        logger.info(f"ScanDeviceView | success | serial_number={serial_number}")
 
         return Response({
-            "message": f"Device {staging.serial_number} scanned successfully.",
-            "device":  DeviceStagingSerializer(staging).data
+            "message": f"Device {serial_number} scanned successfully.",
+            "serial_number": serial_number,
         }, status=status.HTTP_201_CREATED)
-
-
-# Handles confirmation of a device and activation.
-class ConfirmDeviceView(APIView):
-    permission_classes = [IsWarehouseAgent]
-
-    def post(self, request):
-        logger.info(f"ConfirmDeviceView | user={request.user} | serial_number={request.data.get('serial_number')}")
-
-        serializer = SerialNumberSerializer(data=request.data)
-        error_response = _first_validation_error(serializer)
-        if error_response:
-            return error_response
-
-        serial_number = serializer.validated_data["serial_number"]
-
-        try:
-            device = DeviceService.confirm_device(serial_number)
-        except ValueError as e:
-            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"ConfirmDeviceView | failed | serial_number={serial_number} | error={str(e)}", exc_info=True)
-            return Response({"error": "Failed to confirm device."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        logger.info(f"ConfirmDeviceView | success | serial_number={device.serial_number}")
-
-        return Response({
-            "message": f"Device {device.serial_number} confirmed and set to ACTIVE."
-        }, status=status.HTTP_200_OK)
-
-
-# Handles bulk confirmation and activation of devices.
-class ConfirmBulkDevicesView(APIView):
-    permission_classes = [IsWarehouseAgent]
-
-    def post(self, request):
-        logger.info(f"ConfirmBulkDevicesView | user={request.user}")
-
-        serializer = ConfirmDevicesSerializer(data=request.data)
-        error_response = _first_validation_error(serializer)
-        if error_response:
-            return error_response
-
-        serial_numbers = serializer.validated_data["serial_numbers"]
-
-        try:
-            confirmed = DeviceService.confirm_bulk_devices(serial_numbers)
-        except ValueError as e:
-            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"ConfirmBulkDevicesView | failed | error={str(e)}", exc_info=True)
-            return Response({"error": "Failed to confirm devices."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        logger.info(f"ConfirmBulkDevicesView | success | total_confirmed={len(confirmed)}")
-
-        return Response({
-            "message": f"{len(confirmed)} devices confirmed and set to ACTIVE."
-        }, status=status.HTTP_200_OK)
-
 
 
 # Reference lookups (Client / Model / Version dropdowns) ---

@@ -20,8 +20,6 @@ from .views import (
 
     # Devices
     ScanDeviceView,
-    ConfirmDeviceView,
-    ConfirmBulkDevicesView,
     
     # Rentals and company
     DeviceRentalView,
@@ -57,8 +55,6 @@ urlpatterns = [
     # Devices: scan and confirm ---
     path("devices/", ScanDeviceView.as_view(), name="devices"),  # same view as devices/scan/, kept for existing callers
     path("devices/scan/", ScanDeviceView.as_view(), name="devices-scan"),
-    path("devices/confirm/", ConfirmDeviceView.as_view(), name="devices-confirm"),
-    path("devices/confirm-bulk/", ConfirmBulkDevicesView.as_view(), name="devices-confirm-bulk"),
 
     # Rentals ---
     # POST - Warehouse assigns company-owned devices to a client (bulk)
