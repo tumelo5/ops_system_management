@@ -4,6 +4,7 @@ from datetime import timedelta  # REVIEW: unused
 from django.conf import settings  # REVIEW: unused
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.db.models import CharField, F, Value
 
 from .models import (
     Client, Batch,
@@ -267,38 +268,47 @@ class ClientService:
 class DeviceService:
 
     # Scanning
-
     @staticmethod
     def scan_device(serial_number):
+        serial_number = serial_number
         logger.info(f"scan_device | serial_number={serial_number}")
 
-        batch_code = serial_number.split('-')[0]
-        logger.info(f"scan_device | extracted batch_code={batch_code}")
+        # Batches whose code is exactly the start of the SN (2 is enough to detect ambiguity)
+        candidates = list(
+            Batch.objects
+            .select_related('client', 'model_version')
+            .exclude(batch_code='')
+            .annotate(sn=Value(serial_number, output_field=CharField()))
+            .filter(sn__startswith=F('batch_code'))[:2]
+        )
+
+        if not candidates:
+            logger.warning(f"scan_device | no batch match | serial_number={serial_number}")
+            raise ValueError(f"No batch matches serial number '{serial_number}'.")
+
+        if len(candidates) > 1:
+            logger.warning(f"scan_device | ambiguous batch match | serial_number={serial_number}")
+            raise ValueError(
+                f"Serial number '{serial_number}' matches more than one batch code. "
+                "Resolve the batch codes before scanning."
+            )
+
+        batch = candidates[0]
 
         try:
-            batch = Batch.objects.select_related(
-                'client',
-                'model_version'
-            ).get(batch_code=batch_code)
-        except Batch.DoesNotExist:
-            logger.warning(f"scan_device | batch not found | batch_code={batch_code}")
-            raise ValueError(f"No batch found for batch code '{batch_code}'.")
-
-        try:
-            # savepoint, so a duplicate does not poison the surrounding transaction
+            # savepoint
             with transaction.atomic():
                 Device.objects.create(
                     serial_number=serial_number,
                     batch=batch,
-                    device_status='ACTIVE'
+                    device_status='ACTIVE',
                 )
         except IntegrityError:
             logger.warning(f"scan_device | serial number already exists | serial_number={serial_number}")
             raise ValueError(f"Device '{serial_number}' already exists.")
 
-        logger.info(f"scan_device | success | serial_number={serial_number}")
+        logger.info(f"scan_device | success | serial_number={serial_number} batch_code={batch.batch_code}")
         
-
 
 # Batch corrections
 class BatchService:

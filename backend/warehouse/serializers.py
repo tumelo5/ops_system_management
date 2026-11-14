@@ -223,10 +223,6 @@ class ModelVersionDropDownSerializer(serializers.ModelSerializer):
 
 
 # Scanning
-# Case is deliberately left untouched here: the views never normalised serial numbers,
-# so the service owns how they are stored and compared. If the service expects uppercase,
-# add `return value.upper()` in validate_serial_number below.
-
 class SerialNumberSerializer(serializers.Serializer):
     serial_number = serializers.CharField(
         max_length=100,
@@ -238,14 +234,13 @@ class SerialNumberSerializer(serializers.Serializer):
         },
     )
 
+    def validate_serial_number(self, value):
+        return value.strip().lower()
+
 
 class DeviceScanSerializer(SerialNumberSerializer):
-    def validate_serial_number(self, value):
-        # Format: <batch_code>-<device_id>
-        parts = value.split("-")
-        if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
-            raise serializers.ValidationError("Invalid serial number.")
-        return value
+    """Scan input: SN is trimmed and required. Matching it to a batch happens in the service."""
+    pass
 
 
 class ConfirmDevicesSerializer(serializers.Serializer):
