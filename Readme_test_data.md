@@ -33,19 +33,25 @@ DEMO001 creates the model and version. DEMO002 reuses the same model and version
 
 The device counts are only a suggestion. There is no limit on how many devices you can scan per batch, so feel free to scan more.
 
-**Serial numbers** follow `<batch_code>-<device_id>`:
+**Serial numbers.** The system matches a scanned serial number to its batch by checking that the serial number **starts with** an existing batch code, so serial numbers of any length work. For this demo, each serial number is the batch code followed by a unique device ID:
 
-- DEMO001: `DEMO001-01` to `DEMO001-06`
-- DEMO002: `DEMO002-01` to `DEMO002-03`
-- DEMO003: `DEMO003-01` to `DEMO003-03`
+| Batch code | + Unique device ID | = Serial number to scan    |
+|------------|--------------------|----------------------------|
+| DEMO001    | 01 to 06           | `DEMO00101` to `DEMO00106` |
+| DEMO002    | 01 to 03           | `DEMO00201` to `DEMO00203` |
+| DEMO003    | 01 to 03           | `DEMO00301` to `DEMO00303` |
+
+For example, `DEMO00101` is batch `DEMO001` plus unique device ID `01`.
+
+Input is case-insensitive: batch codes, serial numbers and names are normalised to lowercase, so `DEMO00101` is stored as `demo00101`.
 
 **Rentals** (used in step 4). Dates are relative to the day you test:
 
-| Device       | Rented to      | Start date   | Expected return |
-|--------------|----------------|--------------|-----------------|
-| `DEMO001-01` | Alpha Retail   | today - 20 d | today + 40 d    |
-| `DEMO001-02` | Beacon Foods   | today - 55 d | today + 5 d     |
-| `DEMO001-03` | Cedar Pharmacy | today - 90 d | today - 7 d     |
+| Device      | Rented to      | Start date   | Expected return |
+|-------------|----------------|--------------|-----------------|
+| `DEMO00101` | Alpha Retail   | today - 20 d | today + 40 d    |
+| `DEMO00102` | Beacon Foods   | today - 55 d | today + 5 d     |
+| `DEMO00103` | Cedar Pharmacy | today - 90 d | today - 7 d     |
 
 ### 3. Build the data
 
@@ -56,17 +62,20 @@ Warehouse → Clients & Batches. The workflow has three steps:
    - New model or version: type it, and enter the batch code.
    - Model and version that already exist: select them from the dropdown.
    - Do this for all three batches.
-3. **Device scanning:** scan or type the batch's serial numbers. Each scan is validated by the system and saved immediately, so there is no confirm or save step. The screen shows a running count and lists only exceptions (bad format, unknown batch code, duplicate SN).
+3. **Device scanning:** scan or type the batch's serial numbers and press Enter. Each scan is validated and saved immediately, so there is no confirm or save step. The result of each scan is shown right away: `<serial number>: success`, or the reason it was rejected.
 
-Try a duplicate: scan `DEMO001-01` again. It is reported as already saved, and nothing is duplicated.
+Things to try:
+
+- **Duplicate:** scan `DEMO00101` again. It is rejected as already existing, and nothing is duplicated.
+- **Unknown batch:** scan `NOPE01`. It is rejected because no batch code matches the start of the serial number.
 
 ### 4. Rentals
 
 1. **Assign Rental:** choose the client, scan the serial numbers from the rentals table, set the dates, and submit.
 2. **Guards to try:**
-   - Rent `DEMO001-01` a second time: rejected (one active rental per device).
-   - Rent `DEMO002-01`: rejected (client-owned, not rentable).
-3. **End Rental:** scan `DEMO001-01`, review the active rental that appears, and pick an end date.
+   - Rent `DEMO00101` a second time: rejected (one active rental per device).
+   - Rent `DEMO00201`: rejected (client-owned, not rentable).
+3. **End Rental:** scan `DEMO00101`, review the active rental that appears, and pick an end date.
 
 ### 5. Tests
 
