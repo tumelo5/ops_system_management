@@ -1,106 +1,78 @@
-
-/* =========================================================
-   RENTAL PANEL
-   Modern enterprise form styling
-   ========================================================= */
-
-/* Main rental fields */
-
-.bulk-workflow__card .bulk-workflow__fields {
+.rental-panel .bulk-workflow__fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
   margin-bottom: 1.5rem;
 }
 
-/* Field containers */
-
-.bulk-workflow__card .bulk-workflow__field {
+.rental-panel .bulk-workflow__field {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
 }
 
-/* Labels */
-
-.bulk-workflow__card .bulk-workflow__field-label {
+.rental-panel .bulk-workflow__field-label {
   color: #475569;
   font-size: 0.8rem;
   font-weight: 500;
 }
 
-/* Inputs and dropdowns */
-
-.bulk-workflow__card .bulk-workflow__field input,
-.bulk-workflow__card .bulk-workflow__field select {
+.rental-panel .bulk-workflow__field input,
+.rental-panel .bulk-workflow__field select {
   width: 100%;
   min-height: 44px;
   box-sizing: border-box;
   padding: 0.7rem 0.9rem;
-
   background: #f8fafc;
   border: 1px solid transparent;
   border-radius: 8px;
-
   color: #1e293b;
   font-family: inherit;
   font-size: 0.85rem;
-
   outline: none;
-  transition: all 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-/* Placeholder */
-
-.bulk-workflow__card .bulk-workflow__field input::placeholder {
+.rental-panel .bulk-workflow__field input::placeholder {
   color: #94a3b8;
 }
 
-/* Hover */
-
-.bulk-workflow__card .bulk-workflow__field input:hover,
-.bulk-workflow__card .bulk-workflow__field select:hover {
+.rental-panel .bulk-workflow__field input:hover:not(:disabled),
+.rental-panel .bulk-workflow__field select:hover:not(:disabled) {
   background: #f1f5f9;
 }
 
-/* Focus */
-
-.bulk-workflow__card .bulk-workflow__field input:focus,
-.bulk-workflow__card .bulk-workflow__field select:focus {
-  background: #ffffff;
+.rental-panel .bulk-workflow__field input:focus,
+.rental-panel .bulk-workflow__field select:focus {
+  background: #fff;
   border-color: #818cf8;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-/* Disabled */
-
-.bulk-workflow__card .bulk-workflow__field input:disabled,
-.bulk-workflow__card .bulk-workflow__field select:disabled {
+.rental-panel .bulk-workflow__field input:disabled,
+.rental-panel .bulk-workflow__field select:disabled {
   background: #f1f5f9;
   color: #94a3b8;
   cursor: not-allowed;
 }
 
-/* Actions */
-
-.bulk-workflow__card .bulk-workflow__actions {
+.rental-panel .bulk-workflow__actions {
   margin-top: 1.25rem;
 }
 
-/* Responsive */
-
 @media (max-width: 600px) {
-  .bulk-workflow__card .bulk-workflow__fields {
+  .rental-panel .bulk-workflow__fields {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
 }
 
-/* Reduced motion */
-
 @media (prefers-reduced-motion: reduce) {
-  .bulk-workflow__card .bulk-workflow__field * {
+  .rental-panel .bulk-workflow__field * {
     transition: none !important;
   }
 }

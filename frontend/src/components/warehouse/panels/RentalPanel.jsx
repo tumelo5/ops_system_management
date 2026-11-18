@@ -72,7 +72,7 @@ export default function RentalPanel() {
   };
 
   return (
-    <section className="bulk-workflow__section">
+    <section className="bulk-workflow__section rental-panel">
       <div className="bulk-workflow__card">
         <h2 className="bulk-workflow__card-title">Assign devices</h2>
 

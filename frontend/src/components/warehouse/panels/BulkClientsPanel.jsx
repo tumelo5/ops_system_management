@@ -345,6 +345,18 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
                         <div className="bulk-workflow__field">
                           <input
                             type="text"
+                            placeholder="Batch Code"
+                            value={entry.batch_code}
+                            onChange={(e) =>
+                              updateRow(index, "batch_code", e.target.value)
+                            }
+                            aria-label={`Batch code for linking row ${index + 1}`}
+                          />
+                        </div>
+
+                        <div className="bulk-workflow__field">
+                          <input
+                            type="text"
                             placeholder="Model (pick or type)"
                             list="model-names"
                             value={entry.model}
@@ -359,18 +371,6 @@ export default function BulkClientsPanel({ active, onDataChanged }) {
                               created. Check the spelling.
                             </p>
                           )}
-                        </div>
-
-                        <div className="bulk-workflow__field">
-                          <input
-                            type="text"
-                            placeholder="Batch Code"
-                            value={entry.batch_code}
-                            onChange={(e) =>
-                              updateRow(index, "batch_code", e.target.value)
-                            }
-                            aria-label={`Batch code for linking row ${index + 1}`}
-                          />
                         </div>
 
                         <div className="bulk-workflow__field">

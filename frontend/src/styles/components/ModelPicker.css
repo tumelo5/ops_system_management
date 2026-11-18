@@ -37,7 +37,7 @@
 .mode-picker__option:hover:not(:disabled):not(.mode-picker__option--active) {
   border-color: var(--color-border-hover);
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
-  transform: translateY(-1px);
+  /* transform: translateY(-1px); */
 }
 
 .mode-picker__option:focus-visible {
@@ -114,6 +114,10 @@
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: 999px;
+}
+
+.mode-tabs {
+  animation: workflow-enter 300ms ease 200ms both;
 }
 
 /* Sub-action tabs under the cards */

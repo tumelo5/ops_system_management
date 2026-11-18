@@ -733,8 +733,9 @@
   animation: workflow-enter 450ms ease both;
 }
 
+/* Outgoing panel leaves the layout at once, so it can't push the incoming one down */
 .workflow-transition--exiting {
-  animation: workflow-exit 450ms ease both;
+  display: none;
 }
 
 @keyframes workflow-enter {
@@ -745,7 +746,7 @@
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -762,8 +763,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workflow-transition--entering,
-  .workflow-transition--exiting {
+  .workflow-transition--entering {
     animation-duration: 1ms;
+    animation-delay: 0ms;
   }
 }

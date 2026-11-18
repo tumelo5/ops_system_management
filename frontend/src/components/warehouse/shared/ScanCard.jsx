@@ -54,11 +54,7 @@ export default function ScanCard({ unlocked, embedded = false }) {
         />
       </div>
 
-      {!unlocked && (
-        <p className="bulk-workflow__scan-hint">
-          Confirm a client and batch before scanning devices.
-        </p>
-      )}
+      {!unlocked}
 
       <Notification state={note} />
     </>

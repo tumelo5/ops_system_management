@@ -59,7 +59,7 @@ export default function EndRentalPanel() {
   };
 
   return (
-    <section className="bulk-workflow__section">
+    <section className="bulk-workflow__section rental-panel">
       <div className="bulk-workflow__card">
         <h2 className="bulk-workflow__card-title">Scan returned devices</h2>
         <ScanBox box={box} max={MAX_DEVICES} />
