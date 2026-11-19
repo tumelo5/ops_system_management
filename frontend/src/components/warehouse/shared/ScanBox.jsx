@@ -160,14 +160,15 @@ export default function ScanBox({ box, max = 50, placeholder = "Scan a serial nu
   };
 
   const visible = Math.min(Math.max(box.lines.length, MIN_LINES), MAX_LINES);
+  const longest = box.lines.reduce((m, l) => Math.max(m, l.length), 0); // drives the width in ScanBox.css
 
   return (
-    <div className="scan-box-wrap">
+    <div className="scan-box-wrap" style={{ "--scan-chars": longest }}>
       <div className="scan-box__header">
         <span>{box.items.length} / {max} devices</span>
       </div>
 
-      <div className={`scan-box${box.blocked ? " scan-box--locked" : ""}`} style={{ height: 'calc(${visible} * 1.75rem  + 1.2rem + 2px)' }}>
+      <div className={`scan-box${box.blocked ? " scan-box--locked" : ""}`} style={{ height: `calc(${visible} * 1.75rem  + 1.2rem + 2px)` }}>
         {/* Behind the text: the coloured bars and the right-hand labels */}
         <div className="scan-box__backdrop" ref={backdropRef} aria-hidden="true">
           {box.lines.map((line, i) => {
