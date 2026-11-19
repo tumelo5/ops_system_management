@@ -76,3 +76,57 @@
     transition: none !important;
   }
 }
+
+
+/* Underline-style fields, matching Add Clients */
+.rental-panel .bulk-workflow__field input,
+.rental-panel .bulk-workflow__field select,
+.rental-panel .bulk-workflow__field textarea {
+  width: 100%;
+  min-height: 43px;
+  box-sizing: border-box;
+  padding: 0.65rem 0.15rem;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.87rem;
+  outline: none;
+  box-shadow: none !important;
+  transition:
+    border-color 240ms ease,
+    border-width 240ms ease,
+    color 240ms ease;
+}
+
+.rental-panel .bulk-workflow__field input::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.rental-panel .bulk-workflow__field input:hover:not(:disabled),
+.rental-panel .bulk-workflow__field select:hover:not(:disabled) {
+  border-bottom-color: #94a3b8 !important;
+}
+
+.rental-panel .bulk-workflow__field input:focus,
+.rental-panel .bulk-workflow__field select:focus {
+  background: transparent !important;
+  border-bottom: 2px solid #6366f1 !important;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.rental-panel .bulk-workflow__field input:disabled,
+.rental-panel .bulk-workflow__field select:disabled {
+  background: transparent !important;
+  border-bottom: 1px dashed #94a3b8 !important;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.rental-panel .bulk-workflow__field select {
+  cursor: pointer;
+}
