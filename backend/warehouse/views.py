@@ -2,6 +2,18 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from drf_spectacular.utils import (
+    extend_schema, OpenApiParameter, OpenApiExample,
+)
+from .api_docs import (
+    CLIENTS, CORRECTIONS, DEVICES, RENTALS, COMPANY,
+    AUTH_ERRORS, err, MessageSerializer,
+    BulkClientsRequestSerializer, BulkLinksRequestSerializer, LinkItemSerializer,
+    ValidateSelectionResponseSerializer, ModelNameSerializer,
+    ScanResponseSerializer, BatchLookupResponseSerializer,
+    RentalCreateResponseSerializer, EndRentalResponseSerializer, EndRentalsResponseSerializer,
+    CompanyStatusSerializer, CompanySetResponseSerializer,
+)
 from .services import (
     ClientService, DeviceService,
     DeviceRentalService, RentalConflict,
@@ -94,6 +106,25 @@ def _first_validation_error(*serializers_list):
 class BulkClientsView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Create clients in bulk",
+        description="Creates several clients in one all-or-nothing request. Names are trimmed and lowercased. "
+                    "One duplicate rolls back the whole request.",
+        request=BulkClientsRequestSerializer,
+        responses={
+            201: MessageSerializer,
+            400: err("Validation error: empty list, too many rows, duplicate or invalid names."),
+            409: err("A client with that name already exists."),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+        examples=[OpenApiExample(
+            "Two clients",
+            value={"clients": [{"client_name": "Client One"}, {"client_name": "Client Two"}]},
+            request_only=True,
+        )],
+    )
     def post(self, request):
         clients_data = request.data.get("clients", [])
         logger.info(f"BulkClientsView POST | user={request.user} | count={len(clients_data)}")
@@ -124,6 +155,25 @@ class BulkClientsView(APIView):
 class BulkClientsLinkingView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Link clients to a batch code, model and version",
+        description="Creates each client's FIRST batch. Clients that already have a batch must use "
+                    "Existing Client. An existing (model, version) is reused, a new one is created.",
+        request=BulkLinksRequestSerializer,
+        responses={
+            201: MessageSerializer,
+            400: err("Validation error: invalid or duplicate batch code, missing client, model or version."),
+            409: err("The client already has a batch, or the batch code already exists."),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+        examples=[OpenApiExample(
+            "One link",
+            value={"links": [{"client": 1, "batch_code": "demo001", "model": "model-a", "version": "v1"}]},
+            request_only=True,
+        )],
+    )
     def post(self, request):
         links_data = request.data.get("links", [])
 
@@ -160,6 +210,16 @@ class BulkClientsLinkingView(APIView):
 class ClientsAwaitingLinkingView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Clients that have no batch yet",
+        description="The dropdown for the Linking step: only clients without a batch code.",
+        responses={
+            200: ClientDropDownSerializer(many=True),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         try:
             clients = ClientService.get_clients_awaiting_linking()
@@ -176,6 +236,19 @@ class ClientsAwaitingLinkingView(APIView):
 class ValidateSelectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Batches a client already has for a model and version",
+        description="An empty list means the client has not bought this product yet.",
+        request=ValidateSelectionSerializer,
+        responses={
+            200: ValidateSelectionResponseSerializer,
+            400: err("Validation error: client and version are required ids."),
+            404: err("The client, or the model and version, does not exist."),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+    )
     def post(self, request):
         """
         Returns the batches this client already has for the selected model and version.
@@ -208,6 +281,20 @@ class ValidateSelectionView(APIView):
 class ExistingClientBatchView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Add a new batch for an existing client",
+        description="Any model and version, new batch code. The product (model and version) is reused if it "
+                    "exists and created if not.",
+        request=LinkItemSerializer,
+        responses={
+            201: MessageSerializer,
+            400: err("Validation error: invalid fields or a batch code that already exists."),
+            409: err("The batch code already exists, or the client does not exist."),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+    )
     def post(self, request):
         """
         Existing client, any model and version, new batch code.
@@ -255,6 +342,21 @@ class ExistingClientBatchView(APIView):
 class ScanDeviceView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[DEVICES],
+        summary="Scan a device",
+        description="Matches the serial number to exactly one batch by its batch-code prefix and saves the "
+                    "device straight to the Device table. The serial number is trimmed and lowercased.",
+        request=DeviceScanSerializer,
+        responses={
+            201: ScanResponseSerializer,
+            400: err("Validation error: serial number missing or too long."),
+            409: err("No batch matches, more than one batch matches, or the device already exists."),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+        examples=[OpenApiExample("Scan", value={"serial_number": "demo00101"}, request_only=True)],
+    )
     def post(self, request):
         logger.info(f"ScanDeviceView | user={request.user} | serial_number={request.data.get('serial_number')}")
 
@@ -287,6 +389,15 @@ class ScanDeviceView(APIView):
 class ClientListView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="All clients (dropdown)",
+        responses={
+            200: ClientDropDownSerializer(many=True),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         logger.info(f"ClientListView GET | user={request.user}")
         try:
@@ -301,6 +412,15 @@ class ClientListView(APIView):
 class ModelListView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Distinct model names (dropdown)",
+        responses={
+            200: ModelNameSerializer(many=True),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         logger.info(f"ModelListView GET | user={request.user}")
         try:
@@ -314,6 +434,20 @@ class ModelListView(APIView):
 class ModelVersionListView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CLIENTS],
+        summary="Versions of one model (dropdown)",
+        parameters=[OpenApiParameter(
+            "model", str, OpenApiParameter.QUERY, required=True,
+            description="Model name. It is trimmed and lowercased.",
+        )],
+        responses={
+            200: ModelVersionDropDownSerializer(many=True),
+            400: err("The model parameter is missing."),
+            500: err("Unexpected server error."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         model = request.query_params.get("model", "").strip().lower()
         logger.info(f"ModelVersionListView GET | user={request.user} | model={model}")
@@ -334,6 +468,19 @@ class ModelVersionListView(APIView):
 class ClientCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CORRECTIONS],
+        summary="Correct a client's name",
+        description="Direct correction: the name is changed in place.",
+        request=ClientCorrectionSerializer,
+        responses={
+            200: MessageSerializer,
+            400: err("Validation error."),
+            404: err("Client not found."),
+            409: err("That client name already exists."),
+            **AUTH_ERRORS,
+        },
+    )
     def patch(self, request, client_id):
         serializer = ClientCorrectionSerializer(data=request.data)
         error_response = _first_validation_error(serializer)
@@ -356,6 +503,19 @@ class ClientCorrectionView(APIView):
 class DeviceModelCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CORRECTIONS],
+        summary="Rename a model",
+        description="Every version of the model takes the new name.",
+        request=ModelCorrectionSerializer,
+        responses={
+            200: MessageSerializer,
+            400: err("Validation error."),
+            404: err("Model not found."),
+            409: err("A model with the new name already exists."),
+            **AUTH_ERRORS,
+        },
+    )
     def patch(self, request):
         serializer = ModelCorrectionSerializer(data=request.data)
         error_response = _first_validation_error(serializer)
@@ -377,6 +537,18 @@ class DeviceModelCorrectionView(APIView):
 class DeviceModelVersionCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CORRECTIONS],
+        summary="Correct a version",
+        request=VersionCorrectionSerializer,
+        responses={
+            200: MessageSerializer,
+            400: err("Validation error."),
+            404: err("Version not found."),
+            409: err("That version already exists for the model."),
+            **AUTH_ERRORS,
+        },
+    )
     def patch(self, request, version_id):
         serializer = VersionCorrectionSerializer(data=request.data)
         error_response = _first_validation_error(serializer)
@@ -399,6 +571,21 @@ class DeviceModelVersionCorrectionView(APIView):
 class BatchCodeLookupView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CORRECTIONS],
+        summary="Look up a batch by its code",
+        description="Used by the correction screen. `correctable` is false once devices exist under the batch.",
+        parameters=[OpenApiParameter(
+            "batch_code", str, OpenApiParameter.QUERY, required=True,
+            description="Batch code. It is trimmed and lowercased.",
+        )],
+        responses={
+            200: BatchLookupResponseSerializer,
+            400: err("batch_code is missing."),
+            404: err("No batch has that code."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         batch_code = (request.query_params.get("batch_code") or "").strip().lower()
         if not batch_code:
@@ -413,6 +600,20 @@ class BatchCodeLookupView(APIView):
 class BatchCodeCorrectionView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[CORRECTIONS],
+        summary="Correct a batch code",
+        description="Only allowed while no device has been scanned or registered under the batch: a serial "
+                    "number carries its batch code, so a code that real serial numbers use was not a typo.",
+        request=BatchCodeCorrectionSerializer,
+        responses={
+            200: MessageSerializer,
+            400: err("Validation error."),
+            404: err("Batch not found."),
+            409: err("Same code, code already exists, or devices already exist under the batch."),
+            **AUTH_ERRORS,
+        },
+    )
     def patch(self, request, batch_id):
         serializer = BatchCodeCorrectionSerializer(data=request.data)
         error_response = _first_validation_error(serializer)
@@ -435,6 +636,24 @@ class BatchCodeCorrectionView(APIView):
 class DeviceRentalView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[RENTALS],
+        summary="Assign company-owned devices to a client",
+        description="Bulk and all-or-nothing. Each device must belong to the servicing company, be ACTIVE and "
+                    "not already rented, and cannot be rented to the company itself. The body is a list.",
+        request=DeviceRentalSerializer(many=True),
+        responses={
+            201: RentalCreateResponseSerializer,
+            400: err("Validation error: empty list, too many rows, unknown device or client, duplicate device."),
+            409: err("A rental rule was broken, or the company has not been set up."),
+            **AUTH_ERRORS,
+        },
+        examples=[OpenApiExample(
+            "One device",
+            value=[{"device": "demo00101", "rental_client": 2, "expected_return_date": "2027-03-01"}],
+            request_only=True,
+        )],
+    )
     def post(self, request):
         serializer = DeviceRentalSerializer(
             data=request.data, many=True, allow_empty=False, max_length=50
@@ -470,6 +689,22 @@ class RentableCheckView(APIView):
 
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[RENTALS],
+        summary="Scan-time check: can this device be rented?",
+        description="Read-only. Create Rentals re-checks everything under lock at submit time.",
+        parameters=[OpenApiParameter(
+            "serial_number", str, OpenApiParameter.QUERY, required=True,
+            description="Serial number of the scanned device.",
+        )],
+        responses={
+            200: RentableDeviceSerializer,
+            400: err("serial_number is missing."),
+            404: err("Device not found."),
+            409: err("The device cannot be rented: not company-owned, not active, or already rented."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         serial_number = request.query_params.get("serial_number", "").strip()
         if not serial_number:
@@ -490,6 +725,20 @@ class RentableCheckView(APIView):
 class ActiveRentalView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[RENTALS],
+        summary="Scan on End Rental: the device's active rental",
+        parameters=[OpenApiParameter(
+            "serial_number", str, OpenApiParameter.QUERY, required=True,
+            description="Serial number of the scanned device.",
+        )],
+        responses={
+            200: ActiveRentalSerializer,
+            400: err("serial_number is missing."),
+            404: err("This device is not currently on rent."),
+            **AUTH_ERRORS,
+        },
+    )
     def get(self, request):
         serial_number = request.query_params.get("serial_number", "").strip()
         if not serial_number:
@@ -511,6 +760,18 @@ class ActiveRentalView(APIView):
 class EndRentalView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[RENTALS],
+        summary="End one rental",
+        description="The end date cannot be before the rental start or in the future.",
+        request=EndRentalSerializer,
+        responses={
+            200: EndRentalResponseSerializer,
+            400: err("Validation error: unknown rental or invalid date."),
+            409: err("The rental was already ended, or the end date is not allowed."),
+            **AUTH_ERRORS,
+        },
+    )
     def post(self, request):
         serializer = EndRentalSerializer(data=request.data)
         error_response = _first_validation_error(serializer)
@@ -534,6 +795,18 @@ class EndRentalView(APIView):
 class EndRentalsView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[RENTALS],
+        summary="End many rentals with one end date",
+        description="All-or-nothing: if one rental cannot be ended, none are, and the error names the device.",
+        request=EndRentalsSerializer,
+        responses={
+            200: EndRentalsResponseSerializer,
+            400: err("Validation error: empty list, too many rentals or invalid date."),
+            409: err("A rental does not exist, was already ended, or the end date is not allowed."),
+            **AUTH_ERRORS,
+        },
+    )
     def post(self, request):
         serializer = EndRentalsSerializer(data=request.data)
         error_response = _first_validation_error(serializer)
@@ -563,9 +836,26 @@ def _company_payload(client):
 class CompanyView(APIView):
     permission_classes = [IsWarehouseAgent]
 
+    @extend_schema(
+        tags=[COMPANY],
+        summary="Is the servicing company set?",
+        responses={200: CompanyStatusSerializer, **AUTH_ERRORS},
+    )
     def get(self, request):
         return Response(_company_payload(CompanyService.get_company_client_or_none()))
 
+    @extend_schema(
+        tags=[COMPANY],
+        summary="Set the servicing company (one time)",
+        description="Can be done once. The company cannot be changed afterwards.",
+        request=SetCompanySerializer,
+        responses={
+            201: CompanySetResponseSerializer,
+            400: err("Validation error: select a valid client."),
+            409: err("The company has already been set."),
+            **AUTH_ERRORS,
+        },
+    )
     def post(self, request):
         serializer = SetCompanySerializer(data=request.data)
         error_response = _first_validation_error(serializer)
