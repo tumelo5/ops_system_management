@@ -344,7 +344,7 @@ class ClientCorrectionView(APIView):
         try:
             ClientService.correct_reference(
                 Client, client_id, {"client_name": data["client_name"]},
-                user=request.user, reason=data.get("reason") or "",
+                user=request.user,
             )
         except Client.DoesNotExist:
             return Response({"error": "Client not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -365,7 +365,7 @@ class DeviceModelCorrectionView(APIView):
 
         try:
             ClientService.rename_model(
-                data["model"], data["new_model"], user=request.user, reason=data.get("reason") or "",
+                data["model"], data["new_model"], user=request.user,
             )
         except DeviceModelVersion.DoesNotExist:
             return Response({"error": "Model not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -387,7 +387,7 @@ class DeviceModelVersionCorrectionView(APIView):
         try:
             ClientService.correct_reference(
                 DeviceModelVersion, version_id, {"version": data["version"]},
-                user=request.user, reason=data.get("reason") or "",
+                user=request.user,
             )
         except DeviceModelVersion.DoesNotExist:
             return Response({"error": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -422,7 +422,7 @@ class BatchCodeCorrectionView(APIView):
 
         try:
             BatchCodeService.correct_batch_code(
-                batch_id, data["batch_code"], user=request.user, reason=data.get("reason") or "",
+                batch_id, data["batch_code"], user=request.user,
             )
         except Batch.DoesNotExist:
             return Response({"error": "Batch not found."}, status=status.HTTP_404_NOT_FOUND)
