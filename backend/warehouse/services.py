@@ -9,7 +9,6 @@ from django.db.models import CharField, F, Value
 from .models import (
     Client, Batch,
     DeviceModelVersion, Device,
-    BatchCorrection,
     DeviceRental, CompanyProfile,
 )
 
@@ -199,7 +198,7 @@ class ClientService:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def correct_reference(model_class, instance_id, new_data, user, reason=""):
+    def correct_reference(model_class, instance_id, new_data, user):
         try:
             with transaction.atomic():
                 instance = model_class.objects.select_for_update().get(id=instance_id)
@@ -212,14 +211,14 @@ class ClientService:
                 instance.last_corrected_at = timezone.now()
                 instance.save(update_fields=list(new_data.keys()) + ['correction_count', 'last_corrected_by', 'last_corrected_at'])
 
-                logger.info(f"correct_reference | {model_class.__name__} | id={instance_id} | by={user} | reason={reason}")
+                logger.info(f"correct_reference | {model_class.__name__} | id={instance_id} | by={user}")
                 return instance
         except IntegrityError:
             logger.warning(f"correct_reference | duplicate | {model_class.__name__} | id={instance_id} | new_data={new_data}")
             raise ValueError("That value already exists.")
 
     @staticmethod
-    def rename_model(old_name, new_name, user, reason=""):
+    def rename_model(old_name, new_name, user):
         """Rename a model: every (model, version) row of that model takes the new name."""
         try:
             with transaction.atomic():
@@ -240,7 +239,7 @@ class ClientService:
                 DeviceModelVersion.objects.bulk_update(
                     rows, ['model', 'correction_count', 'last_corrected_by', 'last_corrected_at']
                 )
-                logger.info(f"rename_model | {old_name} -> {new_name} | rows={len(rows)} | by={user} | reason={reason}")
+                logger.info(f"rename_model | {old_name} -> {new_name} | rows={len(rows)} | by={user}")
         except IntegrityError:
             logger.warning(f"rename_model | duplicate | {old_name} -> {new_name}")
             raise ValueError("That model name already exists.")
@@ -308,59 +307,11 @@ class DeviceService:
             raise ValueError(f"Device '{serial_number}' already exists.")
 
         logger.info(f"scan_device | success | serial_number={serial_number} batch_code={batch.batch_code}")
-        
-
-# Batch corrections
-class BatchService:
-
-    @staticmethod
-    def flag_downstream_records(batch):
-        # REVIEW: RepairRecord is not imported or defined yet (Repairs isn't built)
-        # Repairs example — same pattern for other departments
-        stale_repairs = RepairRecord.objects.filter(
-            device__batch=batch,
-            batch_verified_at__lt=batch.corrected_at
-        )
-        stale_repairs.update(needs_reverification=True)
-
-    @staticmethod
-    def correct_batch_code(batch_id, new_code, user, reason=""):
-        # REVIEW: duplicate of BatchCodeService.correct_batch_code below, which has the
-        # shared _is_in_use check. Confirm which one the view calls before removing either.
-        """
-        Fix a mistyped batch code. Allowed only while nothing has been scanned or registered
-        under it: a serial number carries its batch code, so a code that real serial numbers
-        already use was not a typo.
-        """
-        try:
-            with transaction.atomic():
-                batch = Batch.objects.select_for_update().get(id=batch_id)
-                old_code = batch.batch_code
-
-                if new_code == old_code:
-                    logger.warning(f"correct_batch_code | same code | batch_id={batch_id} | code={old_code}")
-                    raise CorrectionConflict("The new batch code is the same as the current one.")
-
-                if Device.objects.filter(batch=batch).exists():
-                    logger.warning(f"correct_batch_code | in use, not correctable | batch_id={batch_id} | code={old_code}")
-                    raise CorrectionConflict(
-                        "Devices have already been scanned or registered under this batch code, so it can't be corrected."
-                    )
-
-                batch.batch_code = new_code
-                batch.correction_count += 1
-                batch.corrected_at = timezone.now()
-                batch.save(update_fields=['batch_code', 'correction_count', 'corrected_at'])
-
-                logger.info(f"correct_batch_code | batch_id={batch_id} | {old_code} -> {new_code} | by={user} | reason={reason}")
-                return batch
-        except IntegrityError:
-            logger.warning(f"correct_batch_code | duplicate | batch_id={batch_id} | new_code={new_code}")
-            raise CorrectionConflict(f"Batch code '{new_code}' already exists.")
 
 
+# Batch code lookup and correction
 class BatchCodeService:
-    """Looking up and correcting a batch's code. Independent of the reassignment feature."""
+    """Looking up and correcting a batch's code."""
 
     @staticmethod
     def _is_in_use(batch):
@@ -386,7 +337,7 @@ class BatchCodeService:
         }
 
     @staticmethod
-    def correct_batch_code(batch_id, new_code, user, reason=""):
+    def correct_batch_code(batch_id, new_code, user):
         """Fix a mistyped batch code, only while nothing has been scanned or registered under it."""
         try:
             with transaction.atomic():
@@ -406,7 +357,7 @@ class BatchCodeService:
                 batch.corrected_at = timezone.now()
                 batch.save(update_fields=['batch_code', 'correction_count', 'corrected_at'])
 
-                logger.info(f"correct_batch_code | batch_id={batch_id} | {old_code} -> {new_code} | by={user} | reason={reason}")
+                logger.info(f"correct_batch_code | batch_id={batch_id} | {old_code} -> {new_code} | by={user}")
                 return batch
         except IntegrityError:
             logger.warning(f"correct_batch_code | duplicate | batch_id={batch_id} | new_code={new_code}")
@@ -613,12 +564,12 @@ class DeviceRentalService:
                 ended.append(rental)
 
             DeviceRental.objects.bulk_update(ended, ["returned_at"])
-            logger.info(f"end_rentals | success | count={len(ended)} end_date={end_date}")       
+            logger.info(f"end_rentals | success | count={len(ended)} end_date={end_date}")
         return ended
 
     # -------------------------------------------------------------------------
     # Operational client (used by Repairs, Production)
-    # -------------------------------------------------------------------------
+   
 
     @staticmethod
     def resolve_operational_client(serial_number):
