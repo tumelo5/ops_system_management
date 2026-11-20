@@ -165,12 +165,12 @@ class CompanyProfile(models.Model):
 
 # Legacy
 
-# BATCH CORRECTION
-class BatchCorrection(models.Model):
-    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='corrections')
-    corrected_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    field_changed = models.CharField(max_length=50)  # 'client' or 'model_version'
-    old_value_id = models.PositiveIntegerField()
-    new_value_id = models.PositiveIntegerField()
-    corrected_at = models.DateTimeField(auto_now_add=True)
-    reason = models.CharField(max_length=255, blank=True)
+# # BATCH CORRECTION
+# class BatchCorrection(models.Model):
+#     batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='corrections')
+#     corrected_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+#     field_changed = models.CharField(max_length=50)  # 'client' or 'model_version'
+#     old_value_id = models.PositiveIntegerField()
+#     new_value_id = models.PositiveIntegerField()
+#     corrected_at = models.DateTimeField(auto_now_add=True)
+#     reason = models.CharField(max_length=255, blank=True)
