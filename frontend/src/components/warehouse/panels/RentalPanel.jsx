@@ -16,6 +16,12 @@ export default function RentalPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState(null);
 
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), notice.type === "success" ? 4000 : 8000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
   const box = useScanBox({
     max: MAX_DEVICES,
     validate: async (sn) => {

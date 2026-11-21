@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getActiveRental, endRentals } from "../../../services/RentalApi";
 import ScanBox, { useScanBox, messageOf } from "../shared/ScanBox";
 import "../../../styles/components/EndRentalPanel.css";
@@ -12,6 +12,13 @@ export default function EndRentalPanel() {
   const [endDate, setEndDate] = useState(toDateInput(new Date()));
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    if (!notice) return; {
+      const timer = setTimeout(() => setNotice(null), notice.type === "success" ? 4000 : 8000);
+      return () => clearTimeout(timer); // a new notice restarts the time
+    }
+  }, [notice]);
 
   const box = useScanBox({
     max: MAX_DEVICES,
