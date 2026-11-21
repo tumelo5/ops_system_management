@@ -1,8 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
-import { scanDevice, confirmBulkDevices } from "../../../services/ClientApi";
-import Notification, { useNotification } from "./Notifications";
 import "../../../styles/components/ScanBox.css";
-
 
 const MIN_LINES = 3;   // visible lines when the box is empty
 const MAX_LINES = 10;  // after this, the box scrolls inside
@@ -27,7 +24,7 @@ export const messageOf = (data, fallback) => {
  */
 export function useScanBox({ validate, max = 50 }) {
   const [text, setText] = useState("");
-  const [results, setResults] = useState({}); // lower-cased SN -> {status, meta, data, message, tag}
+  const [results, setResults] = useState({}); // lower-cased SN -> {status, meta, data, message, tag, redundant}
   const [checking, setChecking] = useState(false);
   const [notice, setNotice] = useState(null);
   const inputRef = useRef(null);
@@ -39,28 +36,26 @@ export function useScanBox({ validate, max = 50 }) {
     timer.current = setTimeout(() => setNotice(null), 4000);
   };
 
-  const lines = text.split("\n"); // the last line is the one being typed/scanned
+  // The last line is the one being typed/scanned
+  const lines = useMemo(() => text.split("\n"), [text]);
 
   const rows = useMemo(() => {
     const seen = new Set();
-    return text
-      .split("\n")
-      .slice(0, -1)
-      .map((raw) => {
-        const sn = raw.trim();
-        if (!sn) return { sn, status: "empty" };
-        const key = sn.toLowerCase();
-        if (seen.has(key)) {
-          return { sn, status: "flagged", tag: "Duplicate", message: "Already scanned in this batch." };
-        }
-        seen.add(key);
-        const r = results[key];
-        if (!r) {
-          return { sn, status: "flagged", tag: "Edited", message: "This line was edited. Remove it and scan again." };
-        }
-        return { sn, ...r };
-      });
-  }, [text, results]);
+    return lines.slice(0, -1).map((raw) => {
+      const sn = raw.trim();
+      if (!sn) return { sn, status: "empty" };
+      const key = sn.toLowerCase();
+      if (seen.has(key)) {
+        return { sn, status: "flagged", tag: "Duplicate", message: "Already scanned in this batch.", redundant: true };
+      }
+      seen.add(key);
+      const r = results[key];
+      if (!r) {
+        return { sn, status: "flagged", tag: "Edited", message: "This line was edited. Remove it and scan again." };
+      }
+      return { sn, ...r };
+    });
+  }, [lines, results]);
 
   const items = rows
     .filter((r) => r.status === "ok")
@@ -108,8 +103,13 @@ export function useScanBox({ validate, max = 50 }) {
       setResults((r) => ({ ...r, [key]: { status: "ok", meta: out?.meta, data: out?.data } }));
     } catch (error) {
       const message = messageOf(error.response?.data, "Couldn't check this device.");
-      const tag = error.response?.status === 404 ? "Not found" : "Rejected";
-      setResults((r) => ({ ...r, [key]: { status: "flagged", message, tag } }));
+      const notFound = error.response?.status === 404;
+      // A plain "not found" message only repeats the tag, so the detail list skips it
+      const redundant = notFound && /not found/i.test(message);
+      setResults((r) => ({
+        ...r,
+        [key]: { status: "flagged", message, tag: notFound ? "Not found" : "Rejected", redundant },
+      }));
     } finally {
       setChecking(false);
     }
@@ -147,7 +147,7 @@ export function useScanBox({ validate, max = 50 }) {
   };
 
   return {
-    text, lines, rows, items, problems, blocked, checking, notice,
+    text, lines, rows, items, problems, blocked, notice,
     inputRef, handleKeyDown, handlePaste, flag, clear,
     handleChange: (e) => setText(e.target.value),
   };
@@ -161,6 +161,7 @@ export default function ScanBox({ box, max = 50, placeholder = "Scan a serial nu
 
   const visible = Math.min(Math.max(box.lines.length, MIN_LINES), MAX_LINES);
   const longest = box.lines.reduce((m, l) => Math.max(m, l.length), 0); // drives the width in ScanBox.css
+  const details = box.problems.filter((p) => !p.redundant); // problems the tag doesn't already explain
 
   return (
     <div className="scan-box-wrap" style={{ "--scan-chars": longest }}>
@@ -168,7 +169,7 @@ export default function ScanBox({ box, max = 50, placeholder = "Scan a serial nu
         <span>{box.items.length} / {max} devices</span>
       </div>
 
-      <div className={`scan-box${box.blocked ? " scan-box--locked" : ""}`} style={{ height: `calc(${visible} * 1.75rem  + 1.2rem + 2px)` }}>
+      <div className={`scan-box${box.blocked ? " scan-box--locked" : ""}`} style={{ height: `calc(${visible} * 1.75rem + 1.2rem + 2px)` }}>
         {/* Behind the text: the coloured bars and the right-hand labels */}
         <div className="scan-box__backdrop" ref={backdropRef} aria-hidden="true">
           {box.lines.map((line, i) => {
@@ -181,7 +182,11 @@ export default function ScanBox({ box, max = 50, placeholder = "Scan a serial nu
             return (
               <div key={i} className={`scan-box__line scan-box__line--${status}`}>
                 <span className="scan-box__sn">{line || "\u00a0"}</span>
-                {label && <span className="scan-box__meta">{label}</span>}
+                {label && (
+                  <span className="scan-box__meta" title={status === "flagged" ? row.message : undefined}>
+                    {label}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -205,19 +210,20 @@ export default function ScanBox({ box, max = 50, placeholder = "Scan a serial nu
         />
       </div>
 
-      {box.problems.length > 0 && (
+      {box.problems.length > 0 ? (
         <>
-          <ul className="scan-box__problems">
-            {box.problems.map((p) => (
-              <li key={p.line}><strong>Line {p.line} · {p.sn}</strong> — {p.message}</li>
-            ))}
-          </ul>
-          <p className="scan-lock-hint">
-            Scanning is paused. Select the red serial number and press Backspace to remove it.
-          </p>
+          {details.length > 0 && (
+            <ul className="scan-box__problems">
+              {details.map((p) => (
+                <li key={p.line}>{p.message}</li>
+              ))}
+            </ul>
+          )}
+          <p className="scan-lock-hint">Remove the flagged serial number to resume scanning.</p>
         </>
+      ) : (
+        box.notice && <p className="scan-box__notice">{box.notice}</p>
       )}
-      {box.problems.length === 0 && box.notice && <p className="scan-box__notice">{box.notice}</p>}
     </div>
   );
 }
