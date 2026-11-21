@@ -243,25 +243,6 @@ class DeviceScanSerializer(SerialNumberSerializer):
     pass
 
 
-class ConfirmDevicesSerializer(serializers.Serializer):
-    serial_numbers = serializers.ListField(
-        child=serializers.CharField(
-            max_length=100,
-            error_messages={
-                "blank": "Serial numbers cannot be blank.",
-                "max_length": "Serial number must be 100 characters or fewer.",
-            },
-        ),
-        allow_empty=False,
-        error_messages={
-            "required": "No serial numbers provided.",
-            "null": "No serial numbers provided.",
-            "empty": "No serial numbers provided.",
-            "not_a_list": "serial_numbers must be a list.",
-        },
-    )
-
-
 # Existing Client: check a client's model/version selection
 class ValidateSelectionSerializer(serializers.Serializer):
     client = serializers.IntegerField(
@@ -387,13 +368,17 @@ class DeviceRentalSerializer(serializers.ModelSerializer):
         list_serializer_class = RentalListSerializer
         extra_kwargs = {
             "expected_return_date": {
-                "error_messages": {"invalid": "Expected return date must be a valid date."}
+                "required": True,
+                "allow_null": False,
+                "error_messages": {
+                    "required": "Choose an expected return date.",
+                    "null": "Choose an expected return date.",
+                    "invalid": "Expected return date must be a valid date.",
+                },
             }
         }
 
     def validate_expected_return_date(self, value):
-        if not value:
-            return value
         # Works whether the model field is a DateTimeField or a DateField.
         if isinstance(value, datetime):
             not_future = value <= timezone.now()

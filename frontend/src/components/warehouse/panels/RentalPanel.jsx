@@ -5,8 +5,11 @@ import { checkRentable, submitRentals } from "../../../services/RentalApi";
 import ScanBox, { useScanBox, messageOf } from "../shared/ScanBox";
 import "../../../styles/components/RentalPanel.css";
 
-
 const MAX_DEVICES = 50; // matches max_length=50 in DeviceRentalView
+const pad = (n) => String(n).padStart(2, "0");
+// Local "YYYY-MM-DDTHH:mm", the format datetime-local uses for value/min
+const toLocalInput = (d) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 export default function RentalPanel() {
   const [clients, setClients] = useState([]);
@@ -46,7 +49,9 @@ export default function RentalPanel() {
   const clientName = clients.find((c) => String(c.id) === clientId)?.client_name;
   const companyMissing = company && !company.is_set;
   const n = box.items.length;
-  const canAssign = clientId && n > 0 && !box.blocked && !submitting && !companyMissing;
+  const nowLocal = toLocalInput(new Date());
+  const dateOk = returnDate && new Date(returnDate) > new Date(); // required, and in the future
+  const canAssign = clientId && dateOk && n > 0 && !box.blocked && !submitting && !companyMissing;
 
   const handleAssign = async () => {
     setSubmitting(true);
@@ -55,7 +60,7 @@ export default function RentalPanel() {
       const payload = box.items.map((it) => ({
         device: it.serial_number,
         rental_client: Number(clientId),
-        expected_return_date: returnDate ? new Date(returnDate).toISOString() : null,
+        expected_return_date: new Date(returnDate).toISOString(),
       }));
       const res = await submitRentals(payload);
       box.clear();
@@ -63,12 +68,18 @@ export default function RentalPanel() {
     } catch (error) {
       const data = error.response?.data;
       if (Array.isArray(data)) {
-        // Per-row serializer errors line up with the order of the lines
-        data.forEach((err, i) => {
-          const field = err && Object.keys(err)[0];
-          if (field && box.items[i]) box.flag(box.items[i].serial_number, [].concat(err[field])[0]);
-        });
-        setNotice({ type: "error", message: "Some devices were rejected. Remove the red lines to continue." });
+        // The date is shared by every row, so its error is one message, not a red line per device
+        const dateError = data.map((err) => err?.expected_return_date).find(Boolean);
+        if (dateError) {
+          setNotice({ type: "error", message: [].concat(dateError)[0] });
+        } else {
+          // Per-row serializer errors line up with the order of the lines
+          data.forEach((err, i) => {
+            const field = err && Object.keys(err)[0];
+            if (field && box.items[i]) box.flag(box.items[i].serial_number, [].concat(err[field])[0]);
+          });
+          setNotice({ type: "error", message: "Some devices were rejected. Remove the red lines to continue." });
+        }
       } else {
         setNotice({ type: "error", message: messageOf(data, "Failed to assign rentals.") });
       }
@@ -99,8 +110,14 @@ export default function RentalPanel() {
             </select>
           </div>
           <div className="bulk-workflow__field">
-            <span className="bulk-workflow__field-label">Expected return (all devices)</span>
-            <input type="datetime-local" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
+            <span className="bulk-workflow__field-label">Expected return (all devices) *</span>
+            <input
+              type="datetime-local"
+              value={returnDate}
+              min={nowLocal}
+              onChange={(e) => setReturnDate(e.target.value)}
+              required
+            />
           </div>
         </div>
 

@@ -485,7 +485,7 @@ class DeviceRentalService:
                     DeviceRental.objects.create(
                         device=device,
                         rental_client=item["rental_client"],
-                        expected_return_date=item.get("expected_return_date"),
+                        expected_return_date=item["expected_return_date"],
                     )
                 )
             logger.info(f"create_rentals | success | count={len(created)} rental_ids={[r.pk for r in created]}")
@@ -554,10 +554,9 @@ class DeviceRentalService:
         return ended
 
 
-    # -------------------------------------------------------------------------
+
     # Operational client (used by Repairs, Production)
    
-
     @staticmethod
     def resolve_operational_client(serial_number):
         """
