@@ -25,7 +25,6 @@ from .views import (
     DeviceRentalView,
     RentableCheckView,
     ActiveRentalView,
-    EndRentalView,
     EndRentalsView,
     CompanyView,
 )
@@ -63,8 +62,6 @@ urlpatterns = [
     path("devices/rentals/check/", RentableCheckView.as_view(), name="device-rental-check"),
     # GET  - ?serial_number=...  scan on End Rental -> active rental details
     path("devices/rentals/active/", ActiveRentalView.as_view(), name="device-rental-active"),
-    # POST - { rental_id, end_date }  close ONE rental
-    path("devices/rentals/end/", EndRentalView.as_view(), name="device-rental-end"),
     # POST - { rental_ids, end_date }  close MANY rentals, all-or-nothing
     path("devices/rentals/end/bulk/", EndRentalsView.as_view(), name="device-rental-end-bulk"),
 

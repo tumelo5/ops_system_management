@@ -518,24 +518,10 @@ class DeviceRentalService:
         # TODO when Repairs/Production exist: a rental can never end while the
         # device is on a processing line. Refuse here.
 
-    @staticmethod
-    def end_rental(rental_id, end_date):
-        """Close one rental using the end date the Warehouse agent selected."""
-        with transaction.atomic():
-            rental = (
-                DeviceRental.objects.select_for_update(of=("self",))
-                .select_related("device", "rental_client")
-                .get(pk=rental_id)
-            )
-            DeviceRentalService._assert_can_end(rental, end_date)
-            rental.returned_at = end_date
-            rental.save(update_fields=["returned_at"])
-            logger.info(f"end_rental | success | rental_id={rental_id} end_date={end_date}")
-        return rental
 
     @staticmethod
     def end_rentals(rental_ids, end_date):
-        """Close many rentals with one shared end date. All-or-nothing."""
+        """Close one or many rentals with one shared end date. All-or-nothing."""
         ids = list(rental_ids)
         if len(ids) != len(set(ids)):
             raise RentalConflict("The same rental appears more than once in this request.")
@@ -566,6 +552,7 @@ class DeviceRentalService:
             DeviceRental.objects.bulk_update(ended, ["returned_at"])
             logger.info(f"end_rentals | success | count={len(ended)} end_date={end_date}")
         return ended
+
 
     # -------------------------------------------------------------------------
     # Operational client (used by Repairs, Production)

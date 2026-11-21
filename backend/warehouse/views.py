@@ -30,7 +30,7 @@ from .serializers import (
     VersionCorrectionSerializer, BatchCodeCorrectionSerializer,
     DeviceRentalSerializer, SetCompanySerializer,
     ActiveRentalSerializer, EndedRentalSerializer,
-    EndRentalSerializer, EndRentalsSerializer, RentableDeviceSerializer,
+    EndRentalsSerializer, RentableDeviceSerializer,
     )
 from .models import Client, DeviceModelVersion, Batch
 from backend.common.permissions import IsWarehouseAgent
@@ -756,49 +756,19 @@ class ActiveRentalView(APIView):
         return Response(ActiveRentalSerializer(rental).data)
 
 
-# End ONE rental: contract { rental_id, end_date } ---
-class EndRentalView(APIView):
-    permission_classes = [IsWarehouseAgent]
-
-    @extend_schema(
-        tags=[RENTALS],
-        summary="End one rental",
-        description="The end date cannot be before the rental start or in the future.",
-        request=EndRentalSerializer,
-        responses={
-            200: EndRentalResponseSerializer,
-            400: err("Validation error: unknown rental or invalid date."),
-            409: err("The rental was already ended, or the end date is not allowed."),
-            **AUTH_ERRORS,
-        },
-    )
-    def post(self, request):
-        serializer = EndRentalSerializer(data=request.data)
-        error_response = _first_validation_error(serializer)
-        if error_response:
-            return error_response
-        data = serializer.validated_data
-        try:
-            rental = DeviceRentalService.end_rental(data["rental_id"].pk, data["end_date"])
-        except RentalConflict as e:
-            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
-        return Response(
-            {
-                "message": f"Rental ended for {rental.device.serial_number}.",
-                "rental": EndedRentalSerializer(rental).data,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-# End MANY rentals, one shared end date, all-or-nothing ---
+# End one or many rentals, one shared end date, all-or-nothing ---
 class EndRentalsView(APIView):
     permission_classes = [IsWarehouseAgent]
 
     @extend_schema(
         tags=[RENTALS],
-        summary="End many rentals with one end date",
-        description="All-or-nothing: if one rental cannot be ended, none are, and the error names the device.",
+        summary="End one or many rentals",
+        description=(
+            "Send one rental_id to end a single rental, or several to end them together "
+            "with one shared end date. All-or-nothing: if one rental cannot be ended, "
+            "none are, and the error names the device. The end date cannot be before "
+            "a rental's start or in the future."
+        ),
         request=EndRentalsSerializer,
         responses={
             200: EndRentalsResponseSerializer,
@@ -819,11 +789,13 @@ class EndRentalsView(APIView):
             )
         except RentalConflict as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+        if len(rentals) == 1:
+            message = f"Rental ended for {rentals[0].device.serial_number}."
+        else:
+            message = f"{len(rentals)} rentals ended."
         return Response(
-            {
-                "message": f"{len(rentals)} rental(s) ended.",
-                "rentals": EndedRentalSerializer(rentals, many=True).data,
-            },
+            {"message": message, "rentals": EndedRentalSerializer(rentals, many=True).data},
             status=status.HTTP_200_OK,
         )
 

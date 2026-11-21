@@ -16,10 +16,6 @@ export const getActiveRental = async (serialNumber) =>
 export const submitRentals = async (payload) =>
   (await api.post("/warehouse/devices/rentals/", payload)).data;
 
-// End one rental: { rental_id, end_date }
-export const endRental = async (payload) =>
-  (await api.post("/warehouse/devices/rentals/end/", payload)).data;
-
 // End many rentals with one end date, all-or-nothing: { rental_ids, end_date }
 export const endRentals = async (payload) =>
   (await api.post("/warehouse/devices/rentals/end/bulk/", payload)).data;

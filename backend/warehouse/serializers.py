@@ -428,25 +428,6 @@ class ActiveRentalSerializer(serializers.ModelSerializer):
         fields = ["rental_id", "serial_number", "client", "start_date", "expected_return_date"]
 
 
-# End ONE rental: { rental_id, end_date }. rental_id resolves to the DeviceRental instance.
-class EndRentalSerializer(serializers.Serializer):
-    rental_id = serializers.PrimaryKeyRelatedField(
-        queryset=DeviceRental.objects.all(),
-        error_messages={
-            "required": "Rental is required.",
-            "null": "Rental is required.",
-            "does_not_exist": "Rental not found.",
-            "incorrect_type": "Invalid rental.",
-        },
-    )
-    end_date = serializers.DateField(
-        error_messages={
-            "required": "Choose an end date.",
-            "invalid": "The end date must be a valid date (YYYY-MM-DD).",
-        },
-    )
-
-
 # End MANY rentals with one shared end date.
 class EndRentalsSerializer(serializers.Serializer):
     rental_ids = serializers.ListField(
