@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  backend:
+    backend:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -31,11 +31,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: requirements.txt
       - run: pip install -r requirements.txt
-        working-directory: backend
       - run: python manage.py test
-        working-directory: backend
 
   frontend:
     runs-on: ubuntu-latest
