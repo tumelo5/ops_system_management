@@ -3,26 +3,28 @@ on:
   push:
     branches: [main, dev]
   pull_request:
+  workflow_dispatch:
 
 jobs:
-    backend:
+  backend:
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: ops
-          POSTGRES_USER: ops
-          POSTGRES_PASSWORD: ops
+          POSTGRES_DB: ops_system
+          POSTGRES_USER: ops_user
+          POSTGRES_PASSWORD: ops_password
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U ops -d ops"
+          --health-cmd "pg_isready -U ops_user -d ops_system"
           --health-interval 5s --health-retries 10
     env:
       DB_HOST: localhost
-      DB_NAME: ops
-      DB_USER: ops
-      DB_PASSWORD: ops
+      DB_PORT: 5432
+      DB_NAME: ops_system
+      DB_USER: ops_user
+      DB_PASSWORD: ops_password
       SECRET_KEY: ci-only-not-a-real-secret
       DEBUG: "1"
     steps:
