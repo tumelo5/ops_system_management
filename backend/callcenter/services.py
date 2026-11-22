@@ -1,5 +1,5 @@
 from .models import DeviceLog
-
+from typing import Optional
 
 
 
