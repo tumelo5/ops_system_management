@@ -172,7 +172,7 @@ class LinkingApiTests(WarehouseAPITestCase):
         self.acme = make_client("acme")
 
     def post(self, links):
-        return self.client.post(reverse("clients   bulk   links"), {"links": links}, format="json")
+        return self.client.post(reverse("clients-bulk-links"), {"links": links}, format="json")
 
     def link(self, client=None, batch_code="b0001", model="pos1", version="v1"):
         return {"client": (client or self.acme).id, "batch_code": batch_code, "model": model, "version": version}
@@ -194,7 +194,7 @@ class LinkingApiTests(WarehouseAPITestCase):
         self.assertEqual((batch.model_version.model, batch.model_version.version), ("pos one", "v1"))
 
     def test_empty_or_missing_links_are_rejected_with_400(self):
-        for response in [self.post([]), self.client.post(reverse("clients   bulk   links"), {}, format="json")]:
+        for response in [self.post([]), self.client.post(reverse("clients-bulk-links"), {}, format="json")]:
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
             self.assertEqual(response.data["error"], "Add at least one row.")
 
@@ -261,7 +261,7 @@ class ExistingClientApiTests(WarehouseAPITestCase):
     #           validate selection          
 
     def validate(self, client, version):
-        return self.client.post(reverse("clients   existing   validate"), {"client": client, "version": version}, format="json")
+        return self.client.post(reverse("clients-existing-validate"), {"client": client, "version": version}, format="json")
 
     def test_validate_returns_the_clients_existing_batches_for_the_product(self):
         response = self.validate(self.acme.id, self.version.id)
@@ -276,11 +276,11 @@ class ExistingClientApiTests(WarehouseAPITestCase):
         self.assertEqual(response.data["batches"], [])
 
     def test_validate_rejects_missing_or_malformed_ids_with_400(self):
-        missing = self.client.post(reverse("clients   existing   validate"), {}, format="json")
+        missing = self.client.post(reverse("clients-existing-validate"), {}, format="json")
         self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(missing.data["error"], "client and version are required.")
 
-        for bad in ["abc", 0,    1]:
+        for bad in ["abc", 0, -1]:
             with self.subTest(value=bad):
                 response = self.validate(bad, self.version.id)
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -293,7 +293,7 @@ class ExistingClientApiTests(WarehouseAPITestCase):
     #create batch          
     def create(self, **overrides):
         body = {"client": self.acme.id, "batch_code": "b0002", "model": "pos1", "version": "v1"} | overrides
-        return self.client.post(reverse("clients   existing   batch"), body, format="json")
+        return self.client.post(reverse("clients-existing-batch"), body, format="json")
 
     def test_repeat_purchase_creates_a_new_batch_for_the_same_product(self):
         response = self.create()
@@ -324,7 +324,7 @@ class ExistingClientApiTests(WarehouseAPITestCase):
 
     def test_missing_model_returns_400(self):
         response = self.client.post(
-            reverse("clients   existing   batch"),
+            reverse("clients-existing-batch"),
             {"client": self.acme.id, "batch_code": "b0002", "version": "v1"},
             format="json",
         )
@@ -341,7 +341,7 @@ class LookupApiTests(WarehouseAPITestCase):
         make_batch(client=linked)
         waiting = make_client("waiting")
 
-        response = self.client.get(reverse("clients   awaiting   linking"))
+        response = self.client.get(reverse("clients-awaiting-linking"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [{"id": waiting.id, "client_name": "waiting"}])
@@ -349,7 +349,7 @@ class LookupApiTests(WarehouseAPITestCase):
     def test_client_dropdown_lists_every_client_sorted(self):
         b, a = make_client("bravo"), make_client("alpha")
 
-        response = self.client.get(reverse("clients   list"))
+        response = self.client.get(reverse("clients-list"))
 
         self.assertEqual(response.data, [{"id": a.id, "client_name": "alpha"}, {"id": b.id, "client_name": "bravo"}])
 
@@ -357,25 +357,25 @@ class LookupApiTests(WarehouseAPITestCase):
         make_model_version(model="m", version="1")
         make_model_version(model="m", version="2")
 
-        self.assertEqual(self.client.get(reverse("models   list")).data, [{"model": "m"}])
+        self.assertEqual(self.client.get(reverse("models-list")).data, [{"model": "m"}])
 
     def test_version_dropdown_is_scoped_to_the_model_and_normalises_the_query(self):
         v1 = make_model_version(model="pos1", version="v1")
         make_model_version(model="other", version="v9")
 
-        response = self.client.get(reverse("versions   list"), {"model": "  POS1 "})
+        response = self.client.get(reverse("versions-list"), {"model": "  POS1 "})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [{"id": v1.id, "version": "v1"}])
 
     def test_version_dropdown_requires_a_model(self):
-        response = self.client.get(reverse("versions   list"))
+        response = self.client.get(reverse("versions-list"))
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "model parameter is required.")
 
     def test_lookups_are_closed_to_other_departments(self):
         self.authenticate_as(make_user(department=OTHER_DEPARTMENT))
-        for name in ["clients   awaiting   linking", "clients   list", "models   list", "versions   list"]:
+        for name in ["clients-awaiting-linking", "clients-list", "models-list", "versions-list"]:
             with self.subTest(url=name):
                 self.assertEqual(self.client.get(reverse(name)).status_code, status.HTTP_403_FORBIDDEN)

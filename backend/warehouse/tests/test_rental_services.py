@@ -26,6 +26,9 @@ from .factories import make_batch, make_client, make_company, make_device, make_
 
 Service = DeviceRentalService
 
+def end_one(rental_id, end_date):
+    """Ending one rental is the bulk method with a single id."""
+    return Service.end_rentals([rental_id], end_date)[0]
 
 def item(device, client, expected_return_date=None):
     return {"device": device, "rental_client": client, "expected_return_date": expected_return_date}
@@ -91,7 +94,7 @@ class OwnershipAndCheckTests(RentalWorldMixin, TestCase):
             Service.check_rentable("does not exist")
 
     def test_check_rentable_rejects_client_owned_device(self):
-        with self.assertRaisesMessage(RentalConflict, "not company owned"):
+        with self.assertRaisesMessage(RentalConflict, "not company-owned"):
             Service.check_rentable(self.owned_device.serial_number)
 
     def test_check_rentable_rejects_device_that_is_not_active(self):
@@ -156,7 +159,7 @@ class CreateRentalsTests(RentalWorldMixin, TestCase):
     def test_client_owned_device_cannot_be_rented(self):
         other = make_client("other")
 
-        with self.assertRaisesMessage(RentalConflict, "not company owned"):
+        with self.assertRaisesMessage(RentalConflict, "not company-owned"):
             Service.create_rentals([item(self.owned_device, other)])
 
         self.assertEqual(DeviceRental.objects.count(), 0)
@@ -196,7 +199,7 @@ class CreateRentalsTests(RentalWorldMixin, TestCase):
 
     def test_device_can_be_rented_again_after_the_rental_ends_and_history_is_kept(self):
         first = Service.create_rentals([item(self.device, self.customer)])[0]
-        Service.end_rental(first.pk, timezone.localdate())
+        end_one(first.pk, timezone.localdate())
 
         second = Service.create_rentals([item(self.device, make_client("later"))])[0]
 
@@ -235,7 +238,7 @@ class EndRentalTests(RentalWorldMixin, TestCase):
         self.assertEqual(found, self.rental)
 
     def test_no_active_rental_once_it_has_ended(self):
-        Service.end_rental(self.rental.pk, timezone.localdate())
+        end_one(self.rental.pk, timezone.localdate())
 
         self.assertIsNone(Service.get_active_rental(self.device.serial_number))
 
@@ -244,7 +247,7 @@ class EndRentalTests(RentalWorldMixin, TestCase):
     def test_ending_a_rental_records_the_end_date(self):
         today = timezone.localdate()
 
-        ended = Service.end_rental(self.rental.pk, today)
+        ended = end_one(self.rental.pk, today)
 
         self.assertEqual(ended.returned_at, today)
         self.rental.refresh_from_db()
@@ -254,7 +257,7 @@ class EndRentalTests(RentalWorldMixin, TestCase):
     def test_end_date_can_be_any_day_from_the_start_date_to_today(self):
         self.backdate_start(5)
 
-        Service.end_rental(self.rental.pk, timezone.localdate() - timedelta(days=3))
+        end_one(self.rental.pk, timezone.localdate() - timedelta(days=3))
 
         self.rental.refresh_from_db()
         self.assertEqual(self.rental.returned_at, timezone.localdate() - timedelta(days=3))
@@ -263,24 +266,24 @@ class EndRentalTests(RentalWorldMixin, TestCase):
         self.backdate_start(5)
 
         with self.assertRaisesMessage(RentalConflict, "before the rental start date"):
-            Service.end_rental(self.rental.pk, timezone.localdate() - timedelta(days=10))
+            end_one(self.rental.pk, timezone.localdate() - timedelta(days=10))
 
     def test_end_date_in_the_future_is_rejected(self):
         with self.assertRaisesMessage(RentalConflict, "cannot be in the future"):
-            Service.end_rental(self.rental.pk, timezone.localdate() + timedelta(days=1))
+            end_one(self.rental.pk, timezone.localdate() + timedelta(days=1))
 
     def test_ending_an_ended_rental_is_rejected(self):
-        Service.end_rental(self.rental.pk, timezone.localdate())
+        end_one(self.rental.pk, timezone.localdate())
 
         with self.assertRaisesMessage(RentalConflict, "already been ended"):
-            Service.end_rental(self.rental.pk, timezone.localdate())
+            end_one(self.rental.pk, timezone.localdate())
 
-    def test_ending_an_unknown_rental_raises_does_not_exist(self):
-        with self.assertRaises(DeviceRental.DoesNotExist):
-            Service.end_rental(999999, timezone.localdate())
+    def test_ending_an_unknown_rental_is_rejected(self):
+        with self.assertRaisesMessage(RentalConflict, "Rental 999999 does not exist."):
+            end_one(999999, timezone.localdate())
 
     def test_device_is_rentable_again_after_its_rental_ends(self):
-        Service.end_rental(self.rental.pk, timezone.localdate())
+        end_one(self.rental.pk, timezone.localdate())
 
         Service.check_rentable(self.device.serial_number)  # does not raise
 
@@ -340,7 +343,7 @@ class ResolveOperationalClientTests(RentalWorldMixin, TestCase):
 
     def test_after_the_rental_ends_it_falls_back_to_the_batch_client(self):
         rental = make_rental(self.device, self.customer)
-        Service.end_rental(rental.pk, timezone.localdate())
+        end_one(rental.pk, timezone.localdate())
 
         client, source = Service.resolve_operational_client(self.device.serial_number)
 

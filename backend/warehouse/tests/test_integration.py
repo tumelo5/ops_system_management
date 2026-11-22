@@ -4,6 +4,8 @@ service  > DB), nothing mocked. Each test is one story across several features.
 
 Rule detail is proven in the per layer files; these only prove the features fit together.
 """
+from datetime import timedelta
+
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -16,7 +18,7 @@ from .factories import OTHER_DEPARTMENT, make_user
 
 class WarehouseWorkflowTests(WarehouseAPITestCase):
 
-    #small API helpers: one per user action    
+    # small API helpers: one per user action
 
     def api(self, method, name, data=None, args=None):
         url = reverse(name, args=args)
@@ -25,7 +27,7 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         return getattr(self.client, method)(url, data if data is not None else {}, format="json")
 
     def create_clients(self, *names):
-        response = self.api("post", "clients bulk base", {"clients": [{"client_name": n} for n in names]})
+        response = self.api("post", "clients-bulk-base", {"clients": [{"client_name": n} for n in names]})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         return [Client.objects.get(client_name=n.strip().lower()) for n in names]
 
@@ -34,19 +36,27 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def link(self, client, batch_code, model="pos1", version="v1"):
-        response = self.api("post", "clients bulk links", {"links": [
+        response = self.api("post", "clients-bulk-links", {"links": [
             {"client": client.id, "batch_code": batch_code, "model": model, "version": version}
         ]})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def scan(self, serial_number):
-        return self.api("post", "devices scan", {"serial_number": serial_number})
+        return self.api("post", "devices-scan", {"serial_number": serial_number})
 
     def rent(self, serial_numbers, client):
-        return self.api("post", "device rental create", [
-            {"device": sn, "rental_client": client.id} for sn in serial_numbers
+        due = (timezone.now() + timedelta(days=30)).isoformat()  # the return date is required
+        return self.api("post", "device-rental-create", [
+            {"device": sn, "rental_client": client.id, "expected_return_date": due}
+            for sn in serial_numbers
         ])
-                                                               
+
+    def end_rentals(self, rental_ids, end_date=None):
+        """One endpoint ends one rental or many."""
+        return self.api("post", "device-rental-end-bulk", {
+            "rental_ids": rental_ids,
+            "end_date": end_date or timezone.localdate().isoformat(),
+        })
 
     def test_story_intake_to_rental_and_back(self):
         """Create clients  > link  > scan  > rent  > client resolves to renter  > end  > back to owner."""
@@ -61,23 +71,21 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         self.assertEqual(device.batch.client, company)
 
         # scan time check passes, then the rental is created
-        ok = self.api("get", "device rental check", {"serial_number": "cmp0100001"})
+        ok = self.api("get", "device-rental-check", {"serial_number": "cmp0100001"})
         self.assertEqual(ok.status_code, status.HTTP_200_OK)
         self.assertEqual(self.rent(["cmp0100001", "cmp0100002"], customer).status_code, status.HTTP_201_CREATED)
 
         # a rented device now fails the scan time check ...
-        again = self.api("get", "device rental check", {"serial_number": "cmp0100001"})
+        again = self.api("get", "device-rental-check", {"serial_number": "cmp0100001"})
         self.assertEqual(again.status_code, status.HTTP_409_CONFLICT)
 
         # ... and every department resolves its client to the renter
         self.assertEqual(DeviceRentalService.resolve_operational_client("cmp0100001"), (customer, "RENTAL"))
 
         # end one rental from the scan screen
-        active = self.api("get", "device rental active", {"serial_number": "cmp0100001"})
+        active = self.api("get", "device-rental-active", {"serial_number": "cmp0100001"})
         self.assertEqual(active.status_code, status.HTTP_200_OK)
-        ended = self.api("post", "device rental end", {
-            "rental_id": active.data["rental_id"], "end_date": timezone.localdate().isoformat(),
-        })
+        ended = self.end_rentals([active.data["rental_id"]])
         self.assertEqual(ended.status_code, status.HTTP_200_OK)
 
         # ownership resolution falls back to the permanent owner; the other device is still rented
@@ -96,7 +104,7 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         self.link(customer, "CUS01")
         self.scan("cus0100001")
 
-        check = self.api("get", "device rental check", {"serial_number": "cus0100001"})
+        check = self.api("get", "device-rental-check", {"serial_number": "cus0100001"})
         self.assertEqual(check.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(self.rent(["cus0100001"], other).status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(DeviceRental.objects.count(), 0)
@@ -114,10 +122,9 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         self.rent(["cmp0100001", "cmp0100002"], customer)
 
         first, second = (DeviceRental.objects.get(device__serial_number=sn) for sn in ["cmp0100001", "cmp0100002"])
-        today = timezone.localdate().isoformat()
-        self.api("post", "device rental end", {"rental_id": first.pk, "end_date": today})
+        self.end_rentals([first.pk])
 
-        response = self.api("post", "device rental end bulk", {"rental_ids": [second.pk, first.pk], "end_date": today})
+        response = self.end_rentals([second.pk, first.pk])
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         second.refresh_from_db()
@@ -130,7 +137,7 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         batch = Batch.objects.get()
 
         # nothing scanned yet  > correctable
-        fix = self.api("patch", "batch code correction", {"batch_code": "B0001"}, args=[batch.id])
+        fix = self.api("patch", "batch-code-correction", {"batch_code": "B0001"}, args=[batch.id])
         self.assertEqual(fix.status_code, status.HTTP_200_OK, fix.data)
 
         # the old code no longer matches anything; the corrected one does
@@ -138,7 +145,7 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         self.assertEqual(self.scan("b000100001").status_code, status.HTTP_201_CREATED)
 
         # now a device exists under the code  > locked
-        again = self.api("patch", "batch code correction", {"batch_code": "b9999"}, args=[batch.id])
+        again = self.api("patch", "batch-code-correction", {"batch_code": "b9999"}, args=[batch.id])
         self.assertEqual(again.status_code, status.HTTP_409_CONFLICT)
         batch.refresh_from_db()
         self.assertEqual(batch.batch_code, "b0001")
@@ -147,7 +154,7 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         """First batch via Linking, repeat purchase via Existing Client, devices scan to the right batch."""
         (acme,) = self.create_clients("Acme")
         self.link(acme, "B001")
-        repeat = self.api("post", "clients existing batch", {
+        repeat = self.api("post", "clients-existing-batch", {
             "client": acme.id, "batch_code": "B002", "model": "pos1", "version": "v1",
         })
         self.assertEqual(repeat.status_code, status.HTTP_201_CREATED, repeat.data)
@@ -164,10 +171,10 @@ class WarehouseWorkflowTests(WarehouseAPITestCase):
         self.authenticate_as(make_user(department=OTHER_DEPARTMENT))
 
         for method, name, body in [
-            ("post", "clients bulk base", {"clients": [{"client_name": "x"}]}),
-            ("post", "clients bulk links", {"links": []}),
-            ("post", "devices scan", {"serial_number": "x"}),
-            ("post", "device rental create", []),
+            ("post", "clients-bulk-base", {"clients": [{"client_name": "x"}]}),
+            ("post", "clients-bulk-links", {"links": []}),
+            ("post", "devices-scan", {"serial_number": "x"}),
+            ("post", "device-rental-create", []),
             ("post", "company", {}),
         ]:
             with self.subTest(step=name):

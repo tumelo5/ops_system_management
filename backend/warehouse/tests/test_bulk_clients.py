@@ -145,7 +145,7 @@ class BulkClientsApiTests(WarehouseAPITestCase):
 
     def post(self, *names):
         return self.client.post(
-            reverse("clients  bulk  base"),
+            reverse("clients-bulk-base"),
             {"clients": [{"client_name": n} for n in names]},
             format="json",
         )
@@ -177,7 +177,7 @@ class BulkClientsApiTests(WarehouseAPITestCase):
         self.assertEqual(response.data["error"], "Add at least one row.")
 
     def test_missing_clients_key_is_rejected_with_400(self):
-        response = self.client.post(reverse("clients  bulk  base"), {}, format="json")
+        response = self.client.post(reverse("clients-bulk-base"), {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Add at least one row.")

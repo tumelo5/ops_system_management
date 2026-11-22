@@ -146,7 +146,7 @@ class DeviceServiceScanTests(TestCase):
 # API layer                                                                        
 class ScanDeviceApiTests(WarehouseAPITestCase):
 
-    url = reverse("devices scan")  # ASSUMPTION: no URL namespace; use "warehouse:devices scan" if there is one
+    url = reverse("devices-scan")  # ASSUMPTION: no URL namespace; use "warehouse:devices scan" if there is one
 
     def setUp(self):
         super().setUp()
@@ -173,7 +173,7 @@ class ScanDeviceApiTests(WarehouseAPITestCase):
         self.assertTrue(Device.objects.filter(serial_number="abc00002").exists())
 
     def test_legacy_devices_url_is_the_same_endpoint(self):
-        for index, name in enumerate(["devices", "devices scan"], start=1):
+        for index, name in enumerate(["devices", "devices-scan"], start=1):
             with self.subTest(url_name=name):
                 response = self.scan(f"abc0010{index}", url=reverse(name))
                 self.assertEqual(response.status_code, status.HTTP_201_CREATED)

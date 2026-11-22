@@ -18,8 +18,8 @@ from .factories import OTHER_DEPARTMENT, make_client, make_device, make_rental, 
 def future(days=30):
     return (timezone.now() + timedelta(days=days)).isoformat()
 
-                                                                           
-# Assign rentals (bulk)                                                                          
+
+# Assign rentals (bulk)
 class AssignRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     def setUp(self):
@@ -27,15 +27,20 @@ class AssignRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         self.build_rental_world()
 
     def post(self, rows):
-        return self.client.post(reverse("device rental create"), rows, format="json")
+        return self.client.post(reverse("device-rental-create"), rows, format="json")
 
     def row(self, device=None, client=None, **extra):
-        return {"device": (device or self.device).serial_number, "rental_client": (client or self.customer).id, **extra}
+        return {
+            "device": (device or self.device).serial_number,
+            "rental_client": (client or self.customer).id,
+            "expected_return_date": future(),
+            **extra,
+        }
 
     def test_rents_devices_and_returns_201_with_a_summary(self):
         second = make_device(batch=self.device.batch)
 
-        response = self.post([self.row(expected_return_date=future()), self.row(device=second)])
+        response = self.post([self.row(), self.row(device=second)])
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["message"], "2 device(s) rented out.")
@@ -45,14 +50,26 @@ class AssignRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         )
         self.assertEqual(DeviceRental.objects.filter(returned_at__isnull=True).count(), 2)
 
-    def test_expected_return_date_is_optional(self):
-        self.assertEqual(self.post([self.row()]).status_code, status.HTTP_201_CREATED)
+    def test_expected_return_date_is_required(self):
+        missing = self.row()
+        del missing["expected_return_date"]
+        response = self.post([missing])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Choose an expected return date.")
+
+        response = self.post([self.row(expected_return_date=None)])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Choose an expected return date.")
+        self.assertEqual(DeviceRental.objects.count(), 0)
 
     def test_expected_return_date_in_the_past_returns_400(self):
-        response = self.post([self.row(expected_return_date=future(days= 1))])
+        yesterday = (timezone.now() - timedelta(days=1)).isoformat()
+
+        response = self.post([self.row(expected_return_date=yesterday)])
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Expected return date must be in the future.")
+        self.assertEqual(DeviceRental.objects.count(), 0)
 
     def test_invalid_expected_return_date_returns_400(self):
         response = self.post([self.row(expected_return_date="not a date")])
@@ -61,14 +78,14 @@ class AssignRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         self.assertEqual(response.data["error"], "Expected return date must be a valid date.")
 
     def test_unknown_serial_number_returns_400(self):
-        response = self.post([{"device": "zzz", "rental_client": self.customer.id}])
+        response = self.post([self.row() | {"device": "zzz"}])
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "No device with serial number 'zzz' was found.")
 
     def test_unknown_or_missing_client_returns_400(self):
         unknown = self.post([self.row() | {"rental_client": 999999}])
-        missing = self.post([{"device": self.device.serial_number}])
+        missing = self.post([{"device": self.device.serial_number, "expected_return_date": future()}])
 
         self.assertEqual(unknown.data["error"], "The selected client does not exist.")
         self.assertEqual(missing.data["error"], "Rental client is required.")
@@ -95,7 +112,7 @@ class AssignRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         response = self.post([self.row(), self.row(device=self.owned_device, client=make_client("other"))])
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("not company owned", response.data["error"])
+        self.assertIn("not company-owned", response.data["error"])
         self.assertEqual(DeviceRental.objects.count(), 0)
 
     def test_renting_to_the_company_itself_returns_409(self):
@@ -121,7 +138,7 @@ class AssignRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         self.assertIn("has not been set up yet", response.data["error"])
 
 
-# Scan time checks (Assign Rental / End Rental)                                                                         
+# Scan time checks (Assign Rental)
 class RentableCheckApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     def setUp(self):
@@ -130,7 +147,7 @@ class RentableCheckApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     def check(self, serial_number=None):
         params = {} if serial_number is None else {"serial_number": serial_number}
-        return self.client.get(reverse("device rental check"), params)
+        return self.client.get(reverse("device-rental-check"), params)
 
     def test_rentable_device_returns_its_details(self):
         response = self.check(self.device.serial_number)
@@ -162,6 +179,7 @@ class RentableCheckApiTests(RentalWorldMixin, WarehouseAPITestCase):
         self.assertEqual(self.check(self.device.serial_number).status_code, status.HTTP_409_CONFLICT)
 
 
+# Scan time lookup (End Rental)
 class ActiveRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     def setUp(self):
@@ -170,7 +188,7 @@ class ActiveRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     def lookup(self, serial_number=None):
         params = {} if serial_number is None else {"serial_number": serial_number}
-        return self.client.get(reverse("device rental active"), params)
+        return self.client.get(reverse("device-rental-active"), params)
 
     def test_returns_the_active_rental_details(self):
         rental = make_rental(self.device, self.customer)
@@ -196,8 +214,8 @@ class ActiveRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
     def test_missing_serial_number_returns_400(self):
         self.assertEqual(self.lookup().status_code, status.HTTP_400_BAD_REQUEST)
 
-                                                                           
-# End rentals                                                                         
+
+# End rentals: one endpoint for one or many
 class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     def setUp(self):
@@ -206,34 +224,37 @@ class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         self.rental = make_rental(self.device, self.customer)
         self.today = timezone.localdate().isoformat()
 
-    def end_one(self, **body):
-        return self.client.post(reverse("device rental end"), body, format="json")
-
     def end_many(self, **body):
-        return self.client.post(reverse("device rental end bulk"), body, format="json")
+        return self.client.post(reverse("device-rental-end-bulk"), body, format="json")
 
-    #one    
+    def end_one(self, rental_id=None, **body):
+        """Ending one rental is the bulk endpoint with a single id."""
+        if rental_id is not None:
+            body["rental_ids"] = [rental_id]
+        return self.end_many(**body)
+
+    # one
 
     def test_ends_one_rental(self):
         response = self.end_one(rental_id=self.rental.pk, end_date=self.today)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["message"], f"Rental ended for {self.device.serial_number}.")
-        self.assertEqual(response.data["rental"]["returned_at"], self.today)
+        self.assertEqual(response.data["rentals"][0]["returned_at"], self.today)
         self.rental.refresh_from_db()
         self.assertFalse(self.rental.is_active)
 
-    def test_unknown_rental_returns_400(self):
+    def test_unknown_rental_returns_409(self):
         response = self.end_one(rental_id=999999, end_date=self.today)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data["error"], "Rental not found.")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["error"], "Rental 999999 does not exist.")
 
     def test_missing_or_invalid_end_date_returns_400(self):
         self.assertEqual(self.end_one(rental_id=self.rental.pk).data["error"], "Choose an end date.")
         self.assertEqual(
             self.end_one(rental_id=self.rental.pk, end_date="31/12/2026").data["error"],
-            "The end date must be a valid date (YYYY MM DD).",
+            "The end date must be a valid date (YYYY-MM-DD).",
         )
 
     def test_future_end_date_returns_409(self):
@@ -242,7 +263,7 @@ class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         response = self.end_one(rental_id=self.rental.pk, end_date=tomorrow)
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertEqual(response.data["error"], "End date cannot be in the future.")
+        self.assertIn("End date cannot be in the future.", response.data["error"])
 
     def test_ending_twice_returns_409(self):
         self.end_one(rental_id=self.rental.pk, end_date=self.today)
@@ -250,9 +271,9 @@ class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         response = self.end_one(rental_id=self.rental.pk, end_date=self.today)
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertEqual(response.data["error"], "This rental has already been ended.")
+        self.assertIn("This rental has already been ended.", response.data["error"])
 
-    #many    
+    # many
 
     def test_ends_many_rentals_with_one_date(self):
         other = make_rental(make_device(batch=self.device.batch), self.customer)
@@ -260,7 +281,7 @@ class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         response = self.end_many(rental_ids=[self.rental.pk, other.pk], end_date=self.today)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["message"], "2 rental(s) ended.")
+        self.assertEqual(response.data["message"], "2 rentals ended.")
         self.assertEqual(len(response.data["rentals"]), 2)
         self.assertEqual(DeviceRental.objects.filter(returned_at__isnull=True).count(), 0)
 
@@ -268,7 +289,7 @@ class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         response = self.end_many(rental_ids=[self.rental.pk, self.rental.pk], end_date=self.today)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["message"], "1 rental(s) ended.")
+        self.assertEqual(response.data["message"], f"Rental ended for {self.rental.device.serial_number}.")
 
     def test_bulk_validation_errors_return_400(self):
         cases = [
@@ -301,8 +322,8 @@ class EndRentalApiTests(RentalWorldMixin, WarehouseAPITestCase):
         self.rental.refresh_from_db()
         self.assertTrue(self.rental.is_active)  # all or nothing
 
-                                                                          
-# Company (set once)                                                                          
+
+# Company (set once)
 class CompanyApiTests(WarehouseAPITestCase):
 
     def get(self):
@@ -343,16 +364,15 @@ class CompanyApiTests(WarehouseAPITestCase):
         self.assertEqual(self.post(client=999999).data["error"], "Selected client does not exist.")
         self.assertEqual(CompanyProfile.objects.count(), 0)
 
-                                                                          
-# Permissions: every rental / company endpoint is Warehouse only                                                                           
+
+# Permissions: every rental / company endpoint is Warehouse only
 class RentalPermissionApiTests(RentalWorldMixin, WarehouseAPITestCase):
 
     ENDPOINTS = [
-        ("get", "device rental check"),
-        ("get", "device rental active"),
-        ("post", "device rental create"),
-        ("post", "device rental end"),
-        ("post", "device rental end bulk"),
+        ("get", "device-rental-check"),
+        ("get", "device-rental-active"),
+        ("post", "device-rental-create"),
+        ("post", "device-rental-end-bulk"),
         ("get", "company"),
         ("post", "company"),
     ]
