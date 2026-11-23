@@ -3,10 +3,11 @@ import {
   getExistingClients,
   validateExistingSelection,
   submitExistingClientBatch,
-} from "../../../services/ClientApi";
-import { getExistingModels, getVersionsByModel } from "../../../services/ModelApi";
-import Notification, { useNotification } from "../shared/Notifications";
-import ScanCard from "../shared/ScanCard";
+} from "../../../../services/ClientApi";
+import { getExistingModels, getVersionsByModel } from "../../../../services/ModelApi";
+import Notification, { useNotification } from "../../shared/Notifications/Notifications";
+import ScanCard from "../../shared/ScanCard/ScanCard";
+import "./ExistingClientPanel.css";
 
 // Same normalisation as the serializers (strip + lowercase), so the live checks
 // agree with what the server will decide.

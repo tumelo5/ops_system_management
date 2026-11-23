@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getExistingClients, correctClient } from '../../../services/ClientApi';
+import { getExistingClients, correctClient } from '../../../../services/ClientApi';
 import {
   getExistingModels,
   getVersionsByModel,
   correctModel,
   correctModelVersion,
-} from '../../../services/ModelApi';
+} from '../../../../services/ModelApi';
 
-import Notification, { useNotification } from '../shared/Notifications';
-import BatchCodeCorrectionForm from './BatchCodeCorrectionForm';
-import '../../../styles/components/correction-panel.css';
+
+import Notification, { useNotification } from '../../shared/Notifications/Notifications';
+import BatchCodeCorrectionForm from '../BatchCodeCorrectionForm/BatchCodeCorrectionForm';
+import "./correction-panel.css";
 
 const TABS = {
   REFERENCE: 'reference',

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import api from "../../services/axios";
-import { clearSession } from "../../utils/auth";
+import api from "../../../../services/axios";
+import { clearSession } from "../../../../utils/auth";
 
 export default function Logout() {
   const navigate = useNavigate();

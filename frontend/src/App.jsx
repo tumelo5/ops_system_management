@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import WarehousePage from "./components/warehouse/WarehousePage";
-import LoginPage from "./pages/LoginPage";
+import WarehousePage from "./pages/warehouse/WarehousePage";
+import LoginPage from "./pages/authentication/login/LoginPage";
 import { getSession } from "./utils/auth";
 import "./styles/pages/unauthorized.css";
 

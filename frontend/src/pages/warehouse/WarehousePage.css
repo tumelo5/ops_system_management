@@ -1,0 +1,82 @@
+
+/* Warehouse page background */
+.warehouse-page {
+  min-height: 100vh;
+  width: 100%;
+  background: var(--coor-bg-pagel);
+}
+
+/* Centred content container */
+.bulk-workflow {
+  min-height: 100vh;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+  box-sizing: border-box;
+  font-family: var(--font-family);
+  color: var(--color-text);
+}
+
+.bulk-workflow__header {
+  padding-top: 2rem;
+  margin-bottom: 2.75rem;
+  transition: margin-bottom 0.25s ease;
+}
+
+.bulk-workflow__header--compact {
+  margin-bottom: 1.75rem;
+}
+
+.bulk-workflow__header--compact .bulk-workflow__title {
+  font-size: 1.5rem;
+  margin-bottom: 0;
+}
+
+/* Subtitle and tagline */
+.bulk-workflow__intro {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+}
+
+.bulk-workflow__intro > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bulk-workflow__intro--hidden {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.bulk-workflow__title {
+  margin: 0 0 0.6rem;
+  font-size: 1.75rem;
+  transition: font-size 0.25s ease;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.bulk-workflow__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.bulk-workflow__tagline {
+  margin: 1.75rem auto 0;
+  max-width: 560px;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+@media (max-width: 640px) {
+  .bulk-workflow {
+    padding: 1.25rem 1rem 2rem;
+  }
+}

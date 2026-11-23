@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { getActiveRental, endRentals } from "../../../services/RentalApi";
-import ScanBox, { useScanBox, messageOf } from "../shared/ScanBox";
-import "../../../styles/components/EndRentalPanel.css";
+import { getActiveRental, endRentals } from "../../../../services/RentalApi";
+import ScanBox, { useScanBox, messageOf } from "../../shared/ScanBox/ScanBox";
+import "./EndRentalPanel.css";
 
 const MAX_DEVICES = 50;
 const pad = (n) => String(n).padStart(2, "0");

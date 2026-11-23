@@ -1,16 +1,21 @@
 import { useState } from "react";
+
+import "./WarehousePage.css";
 import "../../styles/components/bulk-workflow.css";
 
-import Navbar from "../navbar/navbar";
-import ModePicker from "./ModePicker";
-import CompanySetUp from "./CompanySetUp";
-import TransitionPanel from "./panels/TransitionPanel";
+import Navbar from "../../components/common/navbar/navbar";
 
-import BulkClientsPanel from "./panels/BulkClientsPanel";
-import ExistingClientPanel from "./panels/ExistingClientPanel";
-import RentalPanel from "./panels/RentalPanel";
-import EndRentalPanel from "./panels/EndRentalPanel";
-import CorrectionPanel from "./panels/CorrectionPanel";
+import ModePicker from "../../components/warehouse/ModePicker/ModePicker";
+import CompanySetUp from "../../components/warehouse/CompanySetUp/CompanySetUp";
+
+import TransitionPanel from "../../components/warehouse/panels/TransitionPanel/TransitionPanel";
+
+import BulkClientsPanel from "../../components/warehouse/panels/BulkClientsPanel/BulkClientsPanel";
+import ExistingClientPanel from "../../components/warehouse/panels/ExistingClientPanel/ExistingClientPanel";
+import RentalPanel from "../../components/warehouse/panels/RentalPanel/RentalPanel";
+import EndRentalPanel from "../../components/warehouse/panels/EndRentalPanel/EndRentalPanel";
+
+import CorrectionPanel from "../../components/warehouse/panels/CorrectionalPanel/CorrectionPanel";
 
 export default function WarehousePage() {
   const [mode, setMode] = useState("");
@@ -31,7 +36,7 @@ export default function WarehousePage() {
     mode === "bulk_clients" || mode === "existing_client";
 
   return (
-    <div classname="warehouse-page">
+    <div className="warehouse-page">
       <div className="bulk-workflow">
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <Navbar />

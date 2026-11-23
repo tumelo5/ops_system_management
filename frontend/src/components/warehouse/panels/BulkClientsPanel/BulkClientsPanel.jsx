@@ -3,11 +3,14 @@ import {
   getClientsAwaitingLinking,
   submitBulkClientsBase,
   submitBulkClientsLinking,
-} from "../../../services/ClientApi";
-import { getExistingModels, getVersionsByModel } from "../../../services/ModelApi";
+} from "../../../../services/ClientApi";
+import { getExistingModels, getVersionsByModel } from "../../../../services/ModelApi";
+import "./BulkClientsPanel.css";
 
-import Notification, { useNotification } from "../shared/Notifications";
-import ScanCard from "../shared/ScanCard";
+import Notification, {
+  useNotification,
+} from "../../shared/Notifications/Notifications";
+import ScanCard from "../../shared/ScanCard/ScanCard";
 
 const MAX_ROWS = 5;
 const LINK_ERROR_FIELD_ORDER = ["batch_code", "client", "version", "model"];

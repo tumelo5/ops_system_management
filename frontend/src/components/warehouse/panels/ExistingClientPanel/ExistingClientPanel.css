@@ -1,0 +1,96 @@
+
+.existing-client .bulk-workflow__card-title,
+.existing-client .bulk-workflow__card-subtitle {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.existing-client .bulk-workflow__fields {
+  gap: 0.9rem 1.5rem;
+}
+
+.existing-client .bulk-workflow__field {
+  min-width: 0;
+}
+
+.existing-client .bulk-workflow__field input,
+.existing-client .bulk-workflow__field select,
+.existing-client .bulk-workflow__field textarea {
+  width: 100%;
+  min-height: 43px;
+  box-sizing: border-box;
+  padding: 0.65rem 0.15rem;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.87rem;
+  outline: none;
+  box-shadow: none !important;
+  transition:
+    border-color 240ms ease,
+    border-width 240ms ease,
+    color 240ms ease;
+}
+
+.existing-client .bulk-workflow__field input::placeholder,
+.existing-client .bulk-workflow__field textarea::placeholder {
+  color: #a0aab8;
+  opacity: 1;
+}
+
+.existing-client .bulk-workflow__field input:hover:not(:disabled),
+.existing-client .bulk-workflow__field select:hover:not(:disabled),
+.existing-client .bulk-workflow__field textarea:hover:not(:disabled) {
+  border-bottom-color: #94a3b8 !important;
+}
+
+.existing-client .bulk-workflow__field input:focus,
+.existing-client .bulk-workflow__field select:focus,
+.existing-client .bulk-workflow__field textarea:focus {
+  background: transparent !important;
+  border-bottom: 2px solid #6366f1 !important;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.existing-client .bulk-workflow__field input:disabled,
+.existing-client .bulk-workflow__field select:disabled,
+.existing-client .bulk-workflow__field textarea:disabled {
+  background: transparent !important;
+  border-bottom: 1px dashed #e2e8f0 !important;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.existing-client .bulk-workflow__field select {
+  cursor: pointer;
+}
+
+.existing-client .bulk-workflow__field-label {
+  margin-bottom: 0.15rem;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+.existing-client .bulk-workflow__subsection {
+  margin-top: 1.5rem;
+  padding-top: 1.35rem;
+}
+
+.existing-client .bulk-workflow__subsection .bulk-workflow__fields {
+  grid-template-columns: minmax(220px, 1fr);
+  max-width: 480px;
+}
+
+.existing-client .bulk-workflow__hint {
+  line-height: 1.55;
+}
+
+.existing-client .bulk-workflow__scan .bulk-workflow__field {
+  max-width: 480px;
+}

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
-import "../../../styles/components/ScanBox.css";
+import "./ScanBox.css";
 
 const MIN_LINES = 3;   // visible lines when the box is empty
 const MAX_LINES = 10;  // after this, the box scrolls inside

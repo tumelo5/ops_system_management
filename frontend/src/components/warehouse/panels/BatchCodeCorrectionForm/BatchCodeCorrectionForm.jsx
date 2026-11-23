@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import {
   findBatchForCorrection,
   correctBatchCode,
-} from '../../../services/BatchApi';
+} from '../../../../services/BatchApi';
 
 /**
  * BatchCodeCorrectionForm

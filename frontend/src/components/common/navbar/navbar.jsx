@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import api from "../../services/axios";
-import { clearSession } from "../../utils/auth";
-import "../../styles/components/navbar.css";
+import api from "../../../services/axios";
+import { clearSession } from "../../../utils/auth";
+import "./navbar.css";
 
 export default function Navbar({ fullName, department }) {
   const navigate = useNavigate();

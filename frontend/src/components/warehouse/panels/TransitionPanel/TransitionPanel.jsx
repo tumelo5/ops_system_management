@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./TransitionPanel.css";
 
 const TRANSITION_DURATION = 450;
 

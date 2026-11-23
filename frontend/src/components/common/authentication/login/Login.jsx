@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../../services/axios";
-import { getDashboardPath, isValidDepartment, setSession } from "../../utils/auth";
-import "../../styles/components/login.css";
+import api from "../../../../services/axios";
+import { getDashboardPath, isValidDepartment, setSession } from "../../../../utils/auth";
+import "./login.css";
 
 const DEMO_ACCOUNTS = [
   { department: "Warehouse", username: "demo_warehouse", password: "Demo@1234" },

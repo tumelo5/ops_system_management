@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { scanDevice } from "../../../services/DeviceApi";
-import Notification, { useNotification } from "./Notifications";
+import { scanDevice } from "../../../../services/DeviceApi";
+import Notification, { useNotification } from "../Notifications/Notifications";
 
 // Props:
 //   unlocked - scanning is only allowed once a batch exists for the flow

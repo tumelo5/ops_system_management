@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { getExistingClients } from "../../../services/ClientApi";
-import { getCompany } from "../../../services/CompanyApi";
-import { checkRentable, submitRentals } from "../../../services/RentalApi";
-import ScanBox, { useScanBox, messageOf } from "../shared/ScanBox";
-import "../../../styles/components/RentalPanel.css";
+import { getExistingClients } from "../../../../services/ClientApi";
+import { getCompany } from"../../../../services/CompanyApi";
+import { checkRentable, submitRentals } from "../../../../services/RentalApi";
+import ScanBox, { useScanBox, messageOf } from "../../shared/ScanBox/ScanBox";
+import "./RentalPanel.css";
 
 const MAX_DEVICES = 50; // matches max_length=50 in DeviceRentalView
 const pad = (n) => String(n).padStart(2, "0");

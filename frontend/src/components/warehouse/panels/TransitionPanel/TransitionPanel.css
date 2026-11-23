@@ -1,0 +1,48 @@
+
+.workflow-transition {
+  width: 100%;
+}
+
+.workflow-transition--hidden {
+  display: none;
+}
+
+.workflow-transition--entering {
+  animation: workflow-enter 450ms ease both;
+}
+
+/* Outgoing panel leaves the layout immediately */
+.workflow-transition--exiting {
+  display: none;
+}
+
+@keyframes workflow-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes workflow-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-transition--entering {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}
